@@ -1,66 +1,84 @@
 import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { UpdateRoomDto } from './dto/update-room.dto';
 import { Room } from './entities/room.entity';
-import { v4 as uuidv4 } from 'uuid';
+import { User } from '../users/entities/user.entity';
 
 @Injectable()
 export class RoomsService {
-  private rooms: Room[] = [];
+  constructor(
+    @InjectRepository(Room)
+    private readonly roomRepository: Repository<Room>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+  ) {}
 
-  create(createRoomDto: CreateRoomDto): Room {
+  async create(createRoomDto: CreateRoomDto): Promise<Room> {
     // Vérifier si une salle avec le même nom existe déjà
-    const existingRoom = this.rooms.find(
-      (room) => room.name.toLowerCase() === createRoomDto.name.toLowerCase(),
-    );
+    const existingRoom = await this.roomRepository.findOne({
+      where: { name: createRoomDto.name },
+    });
     if (existingRoom) {
       throw new ConflictException('Une salle avec ce nom existe déjà');
     }
 
-    const room = new Room({
-      id: uuidv4(),
+    const room = this.roomRepository.create({
       name: createRoomDto.name,
       description: createRoomDto.description,
       createdBy: createRoomDto.createdBy,
-      members: [createRoomDto.createdBy], // Le créateur est automatiquement membre
     });
 
-    this.rooms.push(room);
-    return room;
+    // Ajouter le créateur comme membre
+    const creator = await this.userRepository.findOne({
+      where: { id: createRoomDto.createdBy },
+    });
+    if (creator) {
+      room.members = [creator];
+    }
+
+    return await this.roomRepository.save(room);
   }
 
-  findAll(): Room[] {
-    return this.rooms;
+  async findAll(): Promise<Room[]> {
+    return await this.roomRepository.find({
+      relations: ['members'],
+    });
   }
 
-  findOne(id: string): Room {
-    const room = this.rooms.find((room) => room.id === id);
+  async findOne(id: string): Promise<Room> {
+    const room = await this.roomRepository.findOne({
+      where: { id },
+      relations: ['members'],
+    });
     if (!room) {
       throw new NotFoundException(`Salle avec l'ID ${id} introuvable`);
     }
     return room;
   }
 
-  findByUserId(userId: string): Room[] {
-    return this.rooms.filter((room) => 
-      room.members.includes(userId) || room.createdBy === userId
-    );
+  async findByUserId(userId: string): Promise<Room[]> {
+    return await this.roomRepository
+      .createQueryBuilder('room')
+      .leftJoinAndSelect('room.members', 'member')
+      .where('room.createdBy = :userId', { userId })
+      .orWhere('member.id = :userId', { userId })
+      .getMany();
   }
 
-  update(id: string, updateRoomDto: UpdateRoomDto, userId: string): Room {
-    const room = this.findOne(id);
+  async update(id: string, updateRoomDto: UpdateRoomDto, userId: string): Promise<Room> {
+    const room = await this.findOne(id);
 
-    // Vérifier que l'utilisateur est le créateur de la salle
     if (room.createdBy !== userId) {
       throw new ForbiddenException('Vous n\'êtes pas autorisé à modifier cette salle');
     }
 
     if (updateRoomDto.name) {
-      // Vérifier si le nouveau nom n'est pas déjà pris
-      const existingRoom = this.rooms.find(
-        (r) => r.name.toLowerCase() === updateRoomDto.name.toLowerCase() && r.id !== id,
-      );
-      if (existingRoom) {
+      const existingRoom = await this.roomRepository.findOne({
+        where: { name: updateRoomDto.name },
+      });
+      if (existingRoom && existingRoom.id !== id) {
         throw new ConflictException('Une salle avec ce nom existe déjà');
       }
       room.name = updateRoomDto.name;
@@ -70,54 +88,51 @@ export class RoomsService {
       room.description = updateRoomDto.description;
     }
 
-    room.updatedAt = new Date();
-    return room;
+    return await this.roomRepository.save(room);
   }
 
-  remove(id: string, userId: string): void {
-    const room = this.findOne(id);
+  async remove(id: string, userId: string): Promise<void> {
+    const room = await this.findOne(id);
 
-    // Vérifier que l'utilisateur est le créateur de la salle
     if (room.createdBy !== userId) {
       throw new ForbiddenException('Vous n\'êtes pas autorisé à supprimer cette salle');
     }
 
-    const roomIndex = this.rooms.findIndex((room) => room.id === id);
-    this.rooms.splice(roomIndex, 1);
+    await this.roomRepository.remove(room);
   }
 
-  joinRoom(roomId: string, userId: string): Room {
-    const room = this.findOne(roomId);
+  async joinRoom(roomId: string, userId: string): Promise<Room> {
+    const room = await this.findOne(roomId);
+    const user = await this.userRepository.findOne({ where: { id: userId } });
 
-    if (room.members.includes(userId)) {
+    if (!user) {
+      throw new NotFoundException(`Utilisateur avec l'ID ${userId} introuvable`);
+    }
+
+    // Vérifier si l'utilisateur est déjà membre
+    const isMember = room.members.some((member) => member.id === userId);
+    if (isMember) {
       throw new ConflictException('Vous êtes déjà membre de cette salle');
     }
 
-    room.members.push(userId);
-    room.updatedAt = new Date();
-    return room;
+    room.members.push(user);
+    return await this.roomRepository.save(room);
   }
 
-  leaveRoom(roomId: string, userId: string): Room {
-    const room = this.findOne(roomId);
+  async leaveRoom(roomId: string, userId: string): Promise<Room> {
+    const room = await this.findOne(roomId);
 
-    // Le créateur ne peut pas quitter la salle
     if (room.createdBy === userId) {
       throw new ForbiddenException('Le créateur de la salle ne peut pas la quitter');
     }
 
-    if (!room.members.includes(userId)) {
-      throw new NotFoundException('Vous n\'êtes pas membre de cette salle');
-    }
-
-    room.members = room.members.filter((memberId) => memberId !== userId);
-    room.updatedAt = new Date();
-    return room;
+    room.members = room.members.filter((member) => member.id !== userId);
+    return await this.roomRepository.save(room);
   }
 
-  getRoomMembers(roomId: string): string[] {
-    const room = this.findOne(roomId);
-    return room.members;
+  async getRoomMembers(roomId: string): Promise<string[]> {
+    const room = await this.findOne(roomId);
+    return room.members.map((member) => member.id);
   }
 }
 

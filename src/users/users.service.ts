@@ -1,102 +1,97 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User, UserWithoutPassword } from './entities/user.entity';
-import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class UsersService {
-  private users: User[] = [];
+  constructor(
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+  ) {}
 
-  create(createUserDto: CreateUserDto): UserWithoutPassword {
+  async create(createUserDto: CreateUserDto): Promise<UserWithoutPassword> {
     // Vérifier si l'email existe déjà
-    const existingUser = this.users.find(
-      (user) => user.email === createUserDto.email,
-    );
+    const existingUser = await this.userRepository.findOne({
+      where: { email: createUserDto.email },
+    });
     if (existingUser) {
       throw new ConflictException('Un utilisateur avec cet email existe déjà');
     }
 
     // Vérifier si le username existe déjà
-    const existingUsername = this.users.find(
-      (user) => user.username === createUserDto.username,
-    );
+    const existingUsername = await this.userRepository.findOne({
+      where: { username: createUserDto.username },
+    });
     if (existingUsername) {
       throw new ConflictException('Ce nom d\'utilisateur est déjà pris');
     }
 
-    const user = new User({
-      id: uuidv4(),
-      username: createUserDto.username,
-      email: createUserDto.email,
-      password: createUserDto.password, // Le hash sera fait dans AuthService
-      firstName: createUserDto.firstName,
-      lastName: createUserDto.lastName,
-    });
-
-    this.users.push(user);
-    return this.sanitizeUser(user);
+    const user = this.userRepository.create(createUserDto);
+    const savedUser = await this.userRepository.save(user);
+    return this.sanitizeUser(savedUser);
   }
 
-  findAll(): UserWithoutPassword[] {
-    return this.users.map((user) => this.sanitizeUser(user));
+  async findAll(): Promise<UserWithoutPassword[]> {
+    const users = await this.userRepository.find();
+    return users.map((user) => this.sanitizeUser(user));
   }
 
-  findOne(id: string): UserWithoutPassword {
-    const user = this.users.find((user) => user.id === id);
+  async findOne(id: string): Promise<UserWithoutPassword> {
+    const user = await this.userRepository.findOne({ where: { id } });
     if (!user) {
       throw new NotFoundException(`Utilisateur avec l'ID ${id} introuvable`);
     }
     return this.sanitizeUser(user);
   }
 
-  findByEmail(email: string): User | undefined {
-    return this.users.find((user) => user.email === email);
+  async findByEmail(email: string): Promise<User | null> {
+    return await this.userRepository.findOne({ where: { email } });
   }
 
-  findByUsername(username: string): User | undefined {
-    return this.users.find((user) => user.username === username);
+  async findByUsername(username: string): Promise<User | null> {
+    return await this.userRepository.findOne({ where: { username } });
   }
 
-  update(id: string, updateUserDto: UpdateUserDto): UserWithoutPassword {
-    const userIndex = this.users.findIndex((user) => user.id === id);
-    if (userIndex === -1) {
+  async update(id: string, updateUserDto: UpdateUserDto): Promise<UserWithoutPassword> {
+    const user = await this.userRepository.findOne({ where: { id } });
+    if (!user) {
       throw new NotFoundException(`Utilisateur avec l'ID ${id} introuvable`);
     }
 
     // Vérifier les conflits d'email si l'email est modifié
     if (updateUserDto.email) {
-      const existingUser = this.users.find(
-        (user) => user.email === updateUserDto.email && user.id !== id,
-      );
-      if (existingUser) {
+      const existingUser = await this.userRepository.findOne({
+        where: { email: updateUserDto.email },
+      });
+      if (existingUser && existingUser.id !== id) {
         throw new ConflictException('Un utilisateur avec cet email existe déjà');
       }
     }
 
     // Vérifier les conflits de username si le username est modifié
     if (updateUserDto.username) {
-      const existingUsername = this.users.find(
-        (user) => user.username === updateUserDto.username && user.id !== id,
-      );
-      if (existingUsername) {
+      const existingUsername = await this.userRepository.findOne({
+        where: { username: updateUserDto.username },
+      });
+      if (existingUsername && existingUsername.id !== id) {
         throw new ConflictException('Ce nom d\'utilisateur est déjà pris');
       }
     }
 
-    const user = this.users[userIndex];
     Object.assign(user, updateUserDto);
-    user.updatedAt = new Date();
-
-    return this.sanitizeUser(user);
+    const updatedUser = await this.userRepository.save(user);
+    return this.sanitizeUser(updatedUser);
   }
 
-  remove(id: string): void {
-    const userIndex = this.users.findIndex((user) => user.id === id);
-    if (userIndex === -1) {
+  async remove(id: string): Promise<void> {
+    const user = await this.userRepository.findOne({ where: { id } });
+    if (!user) {
       throw new NotFoundException(`Utilisateur avec l'ID ${id} introuvable`);
     }
-    this.users.splice(userIndex, 1);
+    await this.userRepository.remove(user);
   }
 
   private sanitizeUser(user: User): UserWithoutPassword {

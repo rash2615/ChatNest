@@ -17,20 +17,18 @@ export class AuthService {
   ) {}
 
   async validateUser(email: string, password: string): Promise<any> {
-    const user = this.usersService.findByEmail(email);
+    const user = await this.usersService.findByEmail(email);
     
     if (!user) {
       throw new UnauthorizedException('Email ou mot de passe incorrect');
     }
 
-    // Comparer avec le hash du mot de passe
     const isPasswordValid = await bcrypt.compare(password, user.password);
     
     if (!isPasswordValid) {
       throw new UnauthorizedException('Email ou mot de passe incorrect');
     }
 
-    // Retourner l'utilisateur sans le mot de passe
     const { password: _, ...result } = user;
     return result;
   }
@@ -55,10 +53,9 @@ export class AuthService {
 
   async register(registerDto: RegisterDto) {
     try {
-      // Hasher le mot de passe avant de créer l'utilisateur
       const hashedPassword = await bcrypt.hash(registerDto.password, 10);
       
-      const user = this.usersService.create({
+      const user = await this.usersService.create({
         ...registerDto,
         password: hashedPassword,
       });

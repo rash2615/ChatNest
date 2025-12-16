@@ -9,4 +9,3 @@ import { RoomsModule } from '../rooms/rooms.module';
   exports: [ChatGateway],
 })
 export class ChatModule {}
-

@@ -1,17 +1,32 @@
-export class Room {
-  id: string;
-  name: string;
-  description?: string;
-  createdBy: string;
-  createdAt: Date;
-  updatedAt: Date;
-  members: string[]; // Array of user IDs
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToMany, JoinTable } from 'typeorm';
+import { User } from '../../users/entities/user.entity';
 
-  constructor(partial: Partial<Room>) {
-    Object.assign(this, partial);
-    this.createdAt = new Date();
-    this.updatedAt = new Date();
-    this.members = this.members || [];
-  }
+@Entity('rooms')
+export class Room {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Column({ unique: true })
+  name: string;
+
+  @Column({ type: 'text', nullable: true })
+  description?: string;
+
+  @Column()
+  createdBy: string;
+
+  @ManyToMany(() => User)
+  @JoinTable({
+    name: 'room_members',
+    joinColumn: { name: 'roomId', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'userId', referencedColumnName: 'id' },
+  })
+  members: User[];
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
 }
 

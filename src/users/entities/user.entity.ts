@@ -1,18 +1,30 @@
-export class User {
-  id: string;
-  username: string;
-  email: string;
-  password: string;
-  firstName?: string;
-  lastName?: string;
-  createdAt: Date;
-  updatedAt: Date;
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
-  constructor(partial: Partial<User>) {
-    Object.assign(this, partial);
-    this.createdAt = new Date();
-    this.updatedAt = new Date();
-  }
+@Entity('users')
+export class User {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Column({ unique: true })
+  username: string;
+
+  @Column({ unique: true })
+  email: string;
+
+  @Column()
+  password: string;
+
+  @Column({ nullable: true })
+  firstName?: string;
+
+  @Column({ nullable: true })
+  lastName?: string;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
 }
 
 export type UserWithoutPassword = Omit<User, 'password'>;

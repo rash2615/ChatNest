@@ -25,7 +25,6 @@ export class MessagesController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   create(@Body() createMessageDto: CreateMessageDto, @Request() req) {
-    // Utiliser l'ID de l'utilisateur authentifié
     return this.messagesService.create({
       ...createMessageDto,
       userId: req.user.userId || createMessageDto.userId,

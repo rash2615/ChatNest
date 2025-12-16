@@ -1,16 +1,31 @@
-export class Message {
-  id: string;
-  content: string;
-  userId: string;
-  username: string;
-  roomId?: string;
-  createdAt: Date;
-  updatedAt: Date;
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { User } from '../../users/entities/user.entity';
 
-  constructor(partial: Partial<Message>) {
-    Object.assign(this, partial);
-    this.createdAt = new Date();
-    this.updatedAt = new Date();
-  }
+@Entity('messages')
+export class Message {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Column('text')
+  content: string;
+
+  @Column()
+  userId: string;
+
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'userId' })
+  user: User;
+
+  @Column()
+  username: string;
+
+  @Column({ nullable: true })
+  roomId?: string;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
 }
 
