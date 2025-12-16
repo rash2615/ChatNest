@@ -1,15 +1,36 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ChatGateway } from './chat.gateway';
+import { MessagesService } from '../messages/messages.service';
+import { RoomsService } from '../rooms/rooms.service';
 
 describe('ChatGateway', () => {
   let gateway: ChatGateway;
+  let messagesService: MessagesService;
+  let roomsService: RoomsService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [ChatGateway],
+      providers: [
+        ChatGateway,
+        {
+          provide: MessagesService,
+          useValue: {
+            create: jest.fn(),
+            findByRoomId: jest.fn(),
+          },
+        },
+        {
+          provide: RoomsService,
+          useValue: {
+            getRoomMembers: jest.fn(),
+          },
+        },
+      ],
     }).compile();
 
     gateway = module.get<ChatGateway>(ChatGateway);
+    messagesService = module.get<MessagesService>(MessagesService);
+    roomsService = module.get<RoomsService>(RoomsService);
   });
 
   it('should be defined', () => {
@@ -68,8 +89,8 @@ describe('ChatGateway', () => {
     });
   });
 
-  describe('handleMessage', () => {
-    it('should broadcast message to all clients', () => {
+  describe('handleSendMessage', () => {
+    it('should broadcast message to all clients', async () => {
       const mockClient = {
         id: 'test-client-id',
         emit: jest.fn(),
@@ -77,19 +98,34 @@ describe('ChatGateway', () => {
 
       gateway.server = {
         emit: jest.fn(),
+        to: jest.fn().mockReturnThis(),
       } as any;
 
       const messageData = {
-        message: 'Hello world',
+        content: 'Hello world',
+        userId: 'user-1',
         username: 'testuser',
       };
 
-      gateway.handleMessage(messageData, mockClient);
-
-      expect(gateway.server.emit).toHaveBeenCalledWith('message', {
-        clientId: 'test-client-id',
-        message: 'Hello world',
+      const mockMessage = {
+        id: 'msg-1',
+        content: 'Hello world',
+        userId: 'user-1',
         username: 'testuser',
+        timestamp: new Date(),
+      };
+
+      jest.spyOn(messagesService, 'create').mockResolvedValue(mockMessage as any);
+
+      await gateway.handleSendMessage(messageData, mockClient);
+
+      expect(messagesService.create).toHaveBeenCalledWith({
+        content: 'Hello world',
+        userId: 'user-1',
+        username: 'testuser',
+      });
+      expect(gateway.server.emit).toHaveBeenCalledWith('newMessage', {
+        message: mockMessage,
         timestamp: expect.any(String),
       });
     });
@@ -102,8 +138,11 @@ describe('ChatGateway', () => {
         emit: jest.fn(),
       } as any;
 
-      gateway['connectedClients'].set('client-1', {} as any);
-      gateway['connectedClients'].set('client-2', {} as any);
+      const mockClient1 = { id: 'client-1' } as any;
+      const mockClient2 = { id: 'client-2' } as any;
+
+      gateway['connectedClients'].set('client-1', mockClient1);
+      gateway['connectedClients'].set('client-2', mockClient2);
 
       gateway.handleGetConnectedUsers(mockClient);
 
@@ -114,4 +153,5 @@ describe('ChatGateway', () => {
     });
   });
 });
+
 
