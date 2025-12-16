@@ -53,6 +53,14 @@ describe('ChatGateway', () => {
         emit: jest.fn(),
       } as any;
 
+      const mockServer = {
+        to: jest.fn().mockReturnValue({
+          emit: jest.fn(),
+        }),
+        emit: jest.fn(),
+      };
+
+      gateway.server = mockServer as any;
       jest.spyOn(roomsService, 'joinRoom').mockReturnValue(mockRoom as any);
 
       await gateway.handleJoinRoom(
