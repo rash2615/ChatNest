@@ -29,7 +29,7 @@ export class UsersService {
       id: uuidv4(),
       username: createUserDto.username,
       email: createUserDto.email,
-      password: createUserDto.password, // En production, hash le mot de passe
+      password: createUserDto.password, // Le hash sera fait dans AuthService
       firstName: createUserDto.firstName,
       lastName: createUserDto.lastName,
     });

@@ -3,13 +3,18 @@ import {
   UnauthorizedException,
   ConflictException,
 } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import * as bcrypt from 'bcrypt';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly jwtService: JwtService,
+  ) {}
 
   async validateUser(email: string, password: string): Promise<any> {
     const user = this.usersService.findByEmail(email);
@@ -18,9 +23,10 @@ export class AuthService {
       throw new UnauthorizedException('Email ou mot de passe incorrect');
     }
 
-    // En production, comparer avec le hash du mot de passe
-    // Pour l'instant, comparaison simple (sera remplacé par bcrypt dans JWT)
-    if (user.password !== password) {
+    // Comparer avec le hash du mot de passe
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    
+    if (!isPasswordValid) {
       throw new UnauthorizedException('Email ou mot de passe incorrect');
     }
 
@@ -32,19 +38,42 @@ export class AuthService {
   async login(loginDto: LoginDto) {
     const user = await this.validateUser(loginDto.email, loginDto.password);
     
+    const payload = {
+      email: user.email,
+      sub: user.id,
+      username: user.username,
+    };
+
+    const accessToken = this.jwtService.sign(payload);
+    
     return {
       message: 'Connexion réussie',
+      accessToken,
       user,
-      // Le token JWT sera ajouté dans la branche Features/JWT
     };
   }
 
   async register(registerDto: RegisterDto) {
     try {
-      const user = this.usersService.create(registerDto);
+      // Hasher le mot de passe avant de créer l'utilisateur
+      const hashedPassword = await bcrypt.hash(registerDto.password, 10);
+      
+      const user = this.usersService.create({
+        ...registerDto,
+        password: hashedPassword,
+      });
+
+      const payload = {
+        email: user.email,
+        sub: user.id,
+        username: user.username,
+      };
+
+      const accessToken = this.jwtService.sign(payload);
       
       return {
         message: 'Inscription réussie',
+        accessToken,
         user,
       };
     } catch (error) {
