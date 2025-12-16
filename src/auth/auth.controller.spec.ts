@@ -6,16 +6,18 @@ describe('AuthController', () => {
   let controller: AuthController;
   let service: AuthService;
 
+  const mockAuthService = {
+    register: jest.fn(),
+    login: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
       providers: [
         {
           provide: AuthService,
-          useValue: {
-            register: jest.fn(),
-            login: jest.fn(),
-          },
+          useValue: mockAuthService,
         },
       ],
     }).compile();
@@ -38,10 +40,11 @@ describe('AuthController', () => {
 
       const mockResult = {
         message: 'Inscription réussie',
+        accessToken: 'token',
         user: { id: '1', ...registerDto },
       };
 
-      jest.spyOn(service, 'register').mockResolvedValue(mockResult as any);
+      mockAuthService.register.mockResolvedValue(mockResult);
 
       const result = await controller.register(registerDto);
 
@@ -59,10 +62,11 @@ describe('AuthController', () => {
 
       const mockResult = {
         message: 'Connexion réussie',
+        accessToken: 'token',
         user: { id: '1', email: 'test@example.com' },
       };
 
-      jest.spyOn(service, 'login').mockResolvedValue(mockResult as any);
+      mockAuthService.login.mockResolvedValue(mockResult);
 
       const result = await controller.login(loginDto);
 

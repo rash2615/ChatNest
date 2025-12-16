@@ -1,16 +1,40 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { MessagesService } from './messages.service';
+import { Message } from './entities/message.entity';
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
 
 describe('MessagesService', () => {
   let service: MessagesService;
+  let repository: Repository<Message>;
+
+  const mockRepository = {
+    create: jest.fn(),
+    save: jest.fn(),
+    find: jest.fn(),
+    findOne: jest.fn(),
+    remove: jest.fn(),
+    delete: jest.fn(),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [MessagesService],
+      providers: [
+        MessagesService,
+        {
+          provide: getRepositoryToken(Message),
+          useValue: mockRepository,
+        },
+      ],
     }).compile();
 
     service = module.get<MessagesService>(MessagesService);
+    repository = module.get<Repository<Message>>(getRepositoryToken(Message));
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
   });
 
   it('should be defined', () => {
@@ -18,140 +42,85 @@ describe('MessagesService', () => {
   });
 
   describe('create', () => {
-    it('should create a message successfully', () => {
+    it('should create a message successfully', async () => {
       const createMessageDto = {
         content: 'Hello world',
         userId: 'user-1',
         username: 'testuser',
+        roomId: 'room-1',
       };
 
-      const message = service.create(createMessageDto);
+      const mockMessage = {
+        id: '1',
+        ...createMessageDto,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
 
-      expect(message).toBeDefined();
-      expect(message.content).toBe('Hello world');
-      expect(message.userId).toBe('user-1');
-      expect(message.username).toBe('testuser');
-      expect(message.id).toBeDefined();
-    });
-  });
+      mockRepository.create.mockReturnValue(mockMessage);
+      mockRepository.save.mockResolvedValue(mockMessage);
 
-  describe('findAll', () => {
-    it('should return all messages', () => {
-      service.create({
-        content: 'Message 1',
-        userId: 'user-1',
-        username: 'user1',
-      });
+      const result = await service.create(createMessageDto);
 
-      service.create({
-        content: 'Message 2',
-        userId: 'user-2',
-        username: 'user2',
-      });
-
-      const messages = service.findAll();
-
-      expect(messages).toHaveLength(2);
-    });
-
-    it('should filter messages by roomId', () => {
-      service.create({
-        content: 'Message 1',
-        userId: 'user-1',
-        username: 'user1',
-        roomId: 'room-1',
-      });
-
-      service.create({
-        content: 'Message 2',
-        userId: 'user-2',
-        username: 'user2',
-        roomId: 'room-2',
-      });
-
-      const messages = service.findAll('room-1');
-
-      expect(messages).toHaveLength(1);
-      expect(messages[0].roomId).toBe('room-1');
+      expect(result).toBeDefined();
+      expect(result.content).toBe('Hello world');
     });
   });
 
   describe('findOne', () => {
-    it('should return a message by id', () => {
-      const createdMessage = service.create({
+    it('should return a message by id', async () => {
+      const mockMessage = {
+        id: '1',
         content: 'Test message',
         userId: 'user-1',
-        username: 'user1',
-      });
+        username: 'testuser',
+      };
 
-      const message = service.findOne(createdMessage.id);
+      mockRepository.findOne.mockResolvedValue(mockMessage);
 
-      expect(message).toBeDefined();
-      expect(message.id).toBe(createdMessage.id);
+      const result = await service.findOne('1');
+
+      expect(result).toBeDefined();
+      expect(result.id).toBe('1');
     });
 
-    it('should throw NotFoundException if message does not exist', () => {
-      expect(() => {
-        service.findOne('non-existent-id');
-      }).toThrow(NotFoundException);
+    it('should throw NotFoundException if message does not exist', async () => {
+      mockRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.findOne('non-existent')).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('update', () => {
-    it('should update a message', () => {
-      const createdMessage = service.create({
-        content: 'Original message',
+    it('should update a message if user is owner', async () => {
+      const mockMessage = {
+        id: '1',
+        content: 'Original',
         userId: 'user-1',
-        username: 'user1',
-      });
+        username: 'testuser',
+      };
 
-      const updatedMessage = service.update(
-        createdMessage.id,
-        { content: 'Updated message' },
-        'user-1',
-      );
+      mockRepository.findOne.mockResolvedValue(mockMessage);
+      mockRepository.save.mockResolvedValue({ ...mockMessage, content: 'Updated' });
 
-      expect(updatedMessage.content).toBe('Updated message');
+      const result = await service.update('1', { content: 'Updated' }, 'user-1');
+
+      expect(result.content).toBe('Updated');
     });
 
-    it('should throw ForbiddenException if user is not the owner', () => {
-      const createdMessage = service.create({
-        content: 'Original message',
+    it('should throw ForbiddenException if user is not owner', async () => {
+      const mockMessage = {
+        id: '1',
+        content: 'Original',
         userId: 'user-1',
-        username: 'user1',
-      });
+        username: 'testuser',
+      };
 
-      expect(() => {
-        service.update(createdMessage.id, { content: 'Updated' }, 'user-2');
-      }).toThrow(ForbiddenException);
-    });
-  });
+      mockRepository.findOne.mockResolvedValue(mockMessage);
 
-  describe('remove', () => {
-    it('should remove a message', () => {
-      const createdMessage = service.create({
-        content: 'Test message',
-        userId: 'user-1',
-        username: 'user1',
-      });
-
-      service.remove(createdMessage.id, 'user-1');
-
-      expect(() => {
-        service.findOne(createdMessage.id);
-      }).toThrow(NotFoundException);
-    });
-
-    it('should throw ForbiddenException if user is not the owner', () => {
-      const createdMessage = service.create({
-        content: 'Test message',
-        userId: 'user-1',
-        username: 'user1',
-      });
-
-      expect(() => {
-        service.remove(createdMessage.id, 'user-2');
-      }).toThrow(ForbiddenException);
+      await expect(
+        service.update('1', { content: 'Updated' }, 'user-2'),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 });

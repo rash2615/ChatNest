@@ -1,114 +1,117 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ChatGateway } from './chat.gateway';
-import { MessagesService } from '../messages/messages.service';
-import { RoomsService } from '../rooms/rooms.service';
 
 describe('ChatGateway', () => {
   let gateway: ChatGateway;
-  let messagesService: MessagesService;
-  let roomsService: RoomsService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        ChatGateway,
-        {
-          provide: MessagesService,
-          useValue: {
-            create: jest.fn(),
-            findByRoomId: jest.fn(),
-          },
-        },
-        {
-          provide: RoomsService,
-          useValue: {
-            joinRoom: jest.fn(),
-            leaveRoom: jest.fn(),
-            getRoomMembers: jest.fn(),
-          },
-        },
-      ],
+      providers: [ChatGateway],
     }).compile();
 
     gateway = module.get<ChatGateway>(ChatGateway);
-    messagesService = module.get<MessagesService>(MessagesService);
-    roomsService = module.get<RoomsService>(RoomsService);
   });
 
   it('should be defined', () => {
     expect(gateway).toBeDefined();
   });
 
-  describe('handleJoinRoom', () => {
-    it('should join a room successfully', async () => {
-      const mockRoom = {
-        id: 'room-1',
-        name: 'Test Room',
-        members: ['user-1'],
-      };
-
+  describe('handleConnection', () => {
+    it('should add client to connectedClients and emit userConnected', () => {
       const mockClient = {
-        id: 'client-1',
-        join: jest.fn(),
-        emit: jest.fn(),
-      } as any;
-
-      const mockServer = {
-        to: jest.fn().mockReturnValue({
-          emit: jest.fn(),
-        }),
-        emit: jest.fn(),
-      };
-
-      gateway.server = mockServer as any;
-      jest.spyOn(roomsService, 'joinRoom').mockReturnValue(mockRoom as any);
-
-      await gateway.handleJoinRoom(
-        { roomId: 'room-1', userId: 'user-1' },
-        mockClient,
-      );
-
-      expect(roomsService.joinRoom).toHaveBeenCalledWith('room-1', 'user-1');
-      expect(mockClient.join).toHaveBeenCalledWith('room:room-1');
-      expect(mockClient.emit).toHaveBeenCalledWith('roomJoined', expect.any(Object));
-    });
-  });
-
-  describe('handleSendMessage', () => {
-    it('should send a message successfully', async () => {
-      const mockMessage = {
-        id: 'msg-1',
-        content: 'Hello',
-        userId: 'user-1',
-        username: 'testuser',
-        roomId: 'room-1',
-      };
-
-      const mockClient = {
-        id: 'client-1',
+        id: 'test-client-id',
         emit: jest.fn(),
       } as any;
 
       gateway.server = {
-        to: jest.fn().mockReturnValue({
-          emit: jest.fn(),
-        }),
         emit: jest.fn(),
       } as any;
 
-      jest.spyOn(messagesService, 'create').mockReturnValue(mockMessage as any);
+      gateway.handleConnection(mockClient);
 
-      await gateway.handleSendMessage(
-        {
-          content: 'Hello',
-          userId: 'user-1',
-          username: 'testuser',
-          roomId: 'room-1',
-        },
-        mockClient,
-      );
+      expect(gateway['connectedClients'].has('test-client-id')).toBe(true);
+      expect(gateway.server.emit).toHaveBeenCalledWith('userConnected', expect.any(Object));
+    });
+  });
 
-      expect(messagesService.create).toHaveBeenCalled();
+  describe('handleDisconnect', () => {
+    it('should remove client from connectedClients and emit userDisconnected', () => {
+      const mockClient = {
+        id: 'test-client-id',
+        emit: jest.fn(),
+      } as any;
+
+      gateway['connectedClients'].set('test-client-id', mockClient);
+      gateway.server = {
+        emit: jest.fn(),
+      } as any;
+
+      gateway.handleDisconnect(mockClient);
+
+      expect(gateway['connectedClients'].has('test-client-id')).toBe(false);
+      expect(gateway.server.emit).toHaveBeenCalledWith('userDisconnected', expect.any(Object));
+    });
+  });
+
+  describe('handlePing', () => {
+    it('should return pong event', () => {
+      const mockClient = {
+        id: 'test-client-id',
+        emit: jest.fn(),
+      } as any;
+
+      const result = gateway.handlePing(mockClient);
+
+      expect(result).toBeDefined();
+      expect(result.event).toBe('pong');
+      expect(result.data.message).toBe('pong');
+    });
+  });
+
+  describe('handleMessage', () => {
+    it('should broadcast message to all clients', () => {
+      const mockClient = {
+        id: 'test-client-id',
+        emit: jest.fn(),
+      } as any;
+
+      gateway.server = {
+        emit: jest.fn(),
+      } as any;
+
+      const messageData = {
+        message: 'Hello world',
+        username: 'testuser',
+      };
+
+      gateway.handleMessage(messageData, mockClient);
+
+      expect(gateway.server.emit).toHaveBeenCalledWith('message', {
+        clientId: 'test-client-id',
+        message: 'Hello world',
+        username: 'testuser',
+        timestamp: expect.any(String),
+      });
+    });
+  });
+
+  describe('handleGetConnectedUsers', () => {
+    it('should emit connectedUsers to client', () => {
+      const mockClient = {
+        id: 'test-client-id',
+        emit: jest.fn(),
+      } as any;
+
+      gateway['connectedClients'].set('client-1', {} as any);
+      gateway['connectedClients'].set('client-2', {} as any);
+
+      gateway.handleGetConnectedUsers(mockClient);
+
+      expect(mockClient.emit).toHaveBeenCalledWith('connectedUsers', {
+        users: ['client-1', 'client-2'],
+        count: 2,
+      });
     });
   });
 });
+

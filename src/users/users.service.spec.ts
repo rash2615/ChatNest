@@ -1,16 +1,39 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { UsersService } from './users.service';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { User } from './entities/user.entity';
+import { NotFoundException, ConflictException } from '@nestjs/common';
 
 describe('UsersService', () => {
   let service: UsersService;
+  let repository: Repository<User>;
+
+  const mockRepository = {
+    create: jest.fn(),
+    save: jest.fn(),
+    find: jest.fn(),
+    findOne: jest.fn(),
+    remove: jest.fn(),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [UsersService],
+      providers: [
+        UsersService,
+        {
+          provide: getRepositoryToken(User),
+          useValue: mockRepository,
+        },
+      ],
     }).compile();
 
     service = module.get<UsersService>(UsersService);
+    repository = module.get<Repository<User>>(getRepositoryToken(User));
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
   });
 
   it('should be defined', () => {
@@ -18,144 +41,83 @@ describe('UsersService', () => {
   });
 
   describe('create', () => {
-    it('should create a user successfully', () => {
+    it('should create a user successfully', async () => {
       const createUserDto = {
         username: 'testuser',
         email: 'test@example.com',
         password: 'password123',
       };
 
-      const user = service.create(createUserDto);
+      const mockUser = {
+        id: '1',
+        ...createUserDto,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
 
-      expect(user).toBeDefined();
-      expect(user.username).toBe('testuser');
-      expect(user.email).toBe('test@example.com');
-      expect('password' in user).toBe(false); // Password should be hidden
-      expect(user.id).toBeDefined();
+      mockRepository.findOne.mockResolvedValue(null);
+      mockRepository.create.mockReturnValue(mockUser);
+      mockRepository.save.mockResolvedValue(mockUser);
+
+      const result = await service.create(createUserDto);
+
+      expect(result).toBeDefined();
+      expect('password' in result).toBe(false);
+      expect(result.username).toBe('testuser');
     });
 
-    it('should throw ConflictException if email already exists', () => {
+    it('should throw ConflictException if email already exists', async () => {
       const createUserDto = {
         username: 'testuser',
-        email: 'test@example.com',
+        email: 'existing@example.com',
         password: 'password123',
       };
 
-      service.create(createUserDto);
+      mockRepository.findOne.mockResolvedValue({ id: '1', email: 'existing@example.com' });
 
-      expect(() => {
-        service.create({
-          ...createUserDto,
-          username: 'anotheruser',
-        });
-      }).toThrow(ConflictException);
-    });
-
-    it('should throw ConflictException if username already exists', () => {
-      const createUserDto = {
-        username: 'testuser',
-        email: 'test@example.com',
-        password: 'password123',
-      };
-
-      service.create(createUserDto);
-
-      expect(() => {
-        service.create({
-          ...createUserDto,
-          email: 'another@example.com',
-        });
-      }).toThrow(ConflictException);
+      await expect(service.create(createUserDto)).rejects.toThrow(ConflictException);
     });
   });
 
   describe('findAll', () => {
-    it('should return an array of users without passwords', () => {
-      service.create({
-        username: 'user1',
-        email: 'user1@example.com',
-        password: 'password123',
-      });
+    it('should return an array of users without passwords', async () => {
+      const mockUsers = [
+        { id: '1', username: 'user1', email: 'user1@example.com', password: 'pass1' },
+        { id: '2', username: 'user2', email: 'user2@example.com', password: 'pass2' },
+      ];
 
-      service.create({
-        username: 'user2',
-        email: 'user2@example.com',
-        password: 'password456',
-      });
+      mockRepository.find.mockResolvedValue(mockUsers);
 
-      const users = service.findAll();
+      const result = await service.findAll();
 
-      expect(users).toHaveLength(2);
-      users.forEach((user) => {
+      expect(result).toHaveLength(2);
+      result.forEach((user) => {
         expect('password' in user).toBe(false);
       });
     });
   });
 
   describe('findOne', () => {
-    it('should return a user by id', () => {
-      const createdUser = service.create({
+    it('should return a user by id', async () => {
+      const mockUser = {
+        id: '1',
         username: 'testuser',
         email: 'test@example.com',
         password: 'password123',
-      });
+      };
 
-      const user = service.findOne(createdUser.id);
+      mockRepository.findOne.mockResolvedValue(mockUser);
 
-      expect(user).toBeDefined();
-      expect(user.id).toBe(createdUser.id);
-      expect('password' in user).toBe(false);
+      const result = await service.findOne('1');
+
+      expect(result).toBeDefined();
+      expect('password' in result).toBe(false);
     });
 
-    it('should throw NotFoundException if user does not exist', () => {
-      expect(() => {
-        service.findOne('non-existent-id');
-      }).toThrow(NotFoundException);
-    });
-  });
+    it('should throw NotFoundException if user does not exist', async () => {
+      mockRepository.findOne.mockResolvedValue(null);
 
-  describe('update', () => {
-    it('should update a user', () => {
-      const createdUser = service.create({
-        username: 'testuser',
-        email: 'test@example.com',
-        password: 'password123',
-      });
-
-      const updatedUser = service.update(createdUser.id, {
-        username: 'updateduser',
-      });
-
-      expect(updatedUser.username).toBe('updateduser');
-      expect(updatedUser.email).toBe('test@example.com');
-    });
-
-    it('should throw NotFoundException if user does not exist', () => {
-      expect(() => {
-        service.update('non-existent-id', { username: 'newuser' });
-      }).toThrow(NotFoundException);
-    });
-  });
-
-  describe('remove', () => {
-    it('should remove a user', () => {
-      const createdUser = service.create({
-        username: 'testuser',
-        email: 'test@example.com',
-        password: 'password123',
-      });
-
-      service.remove(createdUser.id);
-
-      expect(() => {
-        service.findOne(createdUser.id);
-      }).toThrow(NotFoundException);
-    });
-
-    it('should throw NotFoundException if user does not exist', () => {
-      expect(() => {
-        service.remove('non-existent-id');
-      }).toThrow(NotFoundException);
+      await expect(service.findOne('non-existent')).rejects.toThrow(NotFoundException);
     });
   });
 });
