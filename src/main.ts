@@ -8,7 +8,13 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   
   // Servir les fichiers statiques depuis le dossier public
-  app.useStaticAssets(join(__dirname, '..', 'public'));
+  const isDev = process.env.NODE_ENV !== 'production';
+  const publicPath = isDev 
+    ? join(process.cwd(), 'public')
+    : join(__dirname, '..', 'public');
+  app.useStaticAssets(publicPath, {
+    prefix: '/',
+  });
   
   // Activer la validation globale
   app.useGlobalPipes(
@@ -28,7 +34,7 @@ async function bootstrap() {
   const port = process.env.PORT || 3000;
   await app.listen(port);
   console.log(`Application is running on: http://localhost:${port}`);
-  console.log(`Interface web: http://localhost:${port}/index.html`);
+  console.log(`Interface web: http://localhost:${port}/`);
   console.log('Database: SQLite (chatnest.db)');
   console.log('WebSocket namespace: /chat');
 }
