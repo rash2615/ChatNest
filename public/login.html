@@ -227,6 +227,9 @@
             <button onclick="quickLogin('user1@test.com', 'password123')">👤 User 1</button>
             <button onclick="quickLogin('user2@test.com', 'password123')">👤 User 2</button>
         </div>
+        <div style="text-align: center; margin-top: 10px; font-size: 12px; color: #666;">
+            <p>Les comptes seront créés automatiquement s'ils n'existent pas</p>
+        </div>
 
         <button class="btn-secondary" onclick="window.location.href='register.html'">
             Créer un compte
@@ -263,12 +266,19 @@
                 const data = await response.json();
                 if (response.ok) {
                     // Stocker le token et les infos utilisateur
-                    localStorage.setItem('token', data.access_token);
-                    localStorage.setItem('user', JSON.stringify(data.user));
-                    showAlert('Connexion réussie ! Redirection...', 'success');
-                    setTimeout(() => {
-                        window.location.href = 'chat.html';
-                    }, 1000);
+                    // Le serveur renvoie accessToken (camelCase) ou access_token (snake_case)
+                    const token = data.accessToken || data.access_token;
+                    if (token) {
+                        localStorage.setItem('token', token);
+                        localStorage.setItem('user', JSON.stringify(data.user));
+                        showAlert('Connexion réussie ! Redirection...', 'success');
+                        setTimeout(() => {
+                            window.location.href = 'chat.html';
+                        }, 1000);
+                    } else {
+                        console.error('Réponse du serveur:', data);
+                        showAlert('Erreur: Token non reçu du serveur. Réponse: ' + JSON.stringify(data));
+                    }
                 } else {
                     showAlert(data.message || 'Email ou mot de passe incorrect');
                 }
@@ -278,9 +288,105 @@
         }
 
         async function quickLogin(email, password) {
+            // Désactiver les boutons pendant le traitement
+            const btn1 = document.querySelector('button[onclick*="user1@test.com"]');
+            const btn2 = document.querySelector('button[onclick*="user2@test.com"]');
+            if (btn1) btn1.disabled = true;
+            if (btn2) btn2.disabled = true;
+            
+            // Afficher un message de chargement
+            showAlert('Connexion en cours...', 'success');
+            
+            // Remplir les champs
             document.getElementById('email').value = email;
             document.getElementById('password').value = password;
-            await handleLogin(new Event('submit'));
+            
+            // Essayer de se connecter
+            try {
+                const response = await fetch(`${API_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Connexion réussie
+                    // Le serveur renvoie accessToken (camelCase) ou access_token (snake_case)
+                    const token = data.accessToken || data.access_token;
+                    if (token) {
+                        localStorage.setItem('token', token);
+                        localStorage.setItem('user', JSON.stringify(data.user));
+                        showAlert('Connexion réussie ! Redirection...', 'success');
+                        setTimeout(() => {
+                            window.location.href = 'chat.html';
+                        }, 1000);
+                        return;
+                    } else {
+                        console.error('Réponse du serveur:', data);
+                        showAlert('Erreur: Token non reçu du serveur. Réponse: ' + JSON.stringify(data));
+                        if (btn1) btn1.disabled = false;
+                        if (btn2) btn2.disabled = false;
+                        return;
+                    }
+                }
+                
+                // Si erreur 401, le compte n'existe pas ou le mot de passe est incorrect
+                if (response.status === 401) {
+                    console.log('Erreur 401 - Tentative de création du compte...');
+                    const username = email.split('@')[0];
+                    showAlert('Création automatique du compte de test...', 'success');
+                    
+                    try {
+                        const registerResponse = await fetch(`${API_URL}/auth/register`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ email, password, username })
+                        });
+
+                        const registerData = await registerResponse.json();
+                        
+                        if (registerResponse.ok) {
+                            // Compte créé avec succès
+                            // Le serveur renvoie accessToken (camelCase) ou access_token (snake_case)
+                            const token = registerData.accessToken || registerData.access_token;
+                            if (token) {
+                                localStorage.setItem('token', token);
+                                localStorage.setItem('user', JSON.stringify(registerData.user));
+                                showAlert('✅ Compte créé et connexion réussie ! Redirection...', 'success');
+                                setTimeout(() => {
+                                    window.location.href = 'chat.html';
+                                }, 1000);
+                                return;
+                            } else {
+                                console.error('Réponse du serveur (register):', registerData);
+                                showAlert('Compte créé mais erreur de connexion. Réponse: ' + JSON.stringify(registerData));
+                            }
+                        } else {
+                            // Erreur lors de la création
+                            if (registerResponse.status === 409) {
+                                // Le compte existe déjà mais le mot de passe est peut-être incorrect
+                                showAlert('Ce compte existe déjà. Si le mot de passe est incorrect, veuillez vous inscrire manuellement avec un autre email.');
+                            } else {
+                                showAlert(`Erreur lors de la création: ${registerData.message || 'Erreur inconnue'}`);
+                            }
+                        }
+                    } catch (registerError) {
+                        console.error('Erreur lors de la création:', registerError);
+                        showAlert(`Erreur lors de la création du compte: ${registerError.message}`);
+                    }
+                } else {
+                    showAlert(data.message || 'Erreur de connexion');
+                }
+            } catch (error) {
+                console.error('Erreur lors de la connexion:', error);
+                showAlert(`Erreur de connexion: ${error.message}. Vérifiez que le serveur est démarré.`);
+            } finally {
+                // Réactiver les boutons
+                if (btn1) btn1.disabled = false;
+                if (btn2) btn2.disabled = false;
+            }
         }
 
         // Vérifier si déjà connecté

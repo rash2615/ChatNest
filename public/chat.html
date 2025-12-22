@@ -402,8 +402,8 @@
     </div>
 
     <!-- Modal pour créer un salon -->
-    <div id="createRoomModal" class="hidden" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000;">
-        <div style="background: white; padding: 30px; border-radius: 15px; width: 90%; max-width: 400px;">
+    <div id="createRoomModal" class="hidden" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000; display: none;" onclick="if(event.target === this) hideCreateRoomModal()">
+        <div style="background: white; padding: 30px; border-radius: 15px; width: 90%; max-width: 400px;" onclick="event.stopPropagation()">
             <h2 style="margin-bottom: 20px;">Créer un nouveau salon</h2>
             <input type="text" id="newRoomName" placeholder="Nom du salon" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; margin-bottom: 15px; font-size: 16px;">
             <div style="display: flex; gap: 10px;">
@@ -422,12 +422,36 @@
 
         const API_URL = 'http://localhost:3000';
 
+        // Fonction pour vérifier si le token est valide
+        async function checkTokenValidity() {
+            if (!currentToken) return false;
+            
+            try {
+                const response = await fetch(`${API_URL}/auth/profile`, {
+                    headers: { 'Authorization': `Bearer ${currentToken}` }
+                });
+                return response.ok;
+            } catch (error) {
+                return false;
+            }
+        }
+
         // Vérifier l'authentification
-        window.addEventListener('DOMContentLoaded', () => {
+        window.addEventListener('DOMContentLoaded', async () => {
             currentToken = localStorage.getItem('token');
             const userStr = localStorage.getItem('user');
             
             if (!currentToken || !userStr) {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            // Vérifier la validité du token
+            const isValid = await checkTokenValidity();
+            if (!isValid) {
+                alert('Votre session a expiré. Veuillez vous reconnecter.');
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
                 window.location.href = 'login.html';
                 return;
             }
@@ -710,12 +734,16 @@
         }
 
         function showCreateRoomModal() {
-            document.getElementById('createRoomModal').classList.remove('hidden');
+            const modal = document.getElementById('createRoomModal');
+            modal.classList.remove('hidden');
+            modal.style.display = 'flex';
             document.getElementById('newRoomName').focus();
         }
 
         function hideCreateRoomModal() {
-            document.getElementById('createRoomModal').classList.add('hidden');
+            const modal = document.getElementById('createRoomModal');
+            modal.classList.add('hidden');
+            modal.style.display = 'none';
             document.getElementById('newRoomName').value = '';
         }
 
@@ -724,6 +752,13 @@
             if (!roomName || roomName.length < 3) {
                 alert('Le nom du salon doit contenir au moins 3 caractères');
                 return;
+            }
+
+            // Désactiver le bouton pendant la création
+            const createBtn = event?.target || document.querySelector('button[onclick="createRoom()"]');
+            if (createBtn) {
+                createBtn.disabled = true;
+                createBtn.textContent = 'Création...';
             }
 
             try {
@@ -738,31 +773,64 @@
 
                 const data = await response.json();
                 if (response.ok) {
+                    // Fermer la modal immédiatement
                     hideCreateRoomModal();
+                    
+                    // Recharger les salons
                     await loadRooms();
+                    
+                    // Rejoindre le salon créé après un court délai
                     setTimeout(() => {
                         // Trouver l'élément de la room créée
                         const roomItems = document.querySelectorAll('.room-item');
-                        const newRoomItem = Array.from(roomItems).find(item => 
-                            item.textContent.includes(data.name)
-                        );
-                        joinRoom(data.id, data.name, newRoomItem || null);
-                    }, 200);
+                        const newRoomItem = Array.from(roomItems).find(item => {
+                            const nameSpan = item.querySelector('.room-name');
+                            return nameSpan && nameSpan.textContent.includes(data.name);
+                        });
+                        if (newRoomItem) {
+                            joinRoom(data.id, data.name, newRoomItem);
+                        } else {
+                            // Si on ne trouve pas l'élément, rejoindre quand même
+                            joinRoom(data.id, data.name, null);
+                        }
+                    }, 300);
                 } else {
-                    alert(`Erreur: ${data.message || 'Impossible de créer le salon'}`);
+                    if (response.status === 401) {
+                        hideCreateRoomModal();
+                        alert('Votre session a expiré. Veuillez vous reconnecter.');
+                        logout();
+                    } else {
+                        alert(`Erreur: ${data.message || 'Impossible de créer le salon'}`);
+                    }
                 }
             } catch (error) {
                 alert(`Erreur: ${error.message}`);
+            } finally {
+                // Réactiver le bouton
+                if (createBtn) {
+                    createBtn.disabled = false;
+                    createBtn.textContent = 'Créer';
+                }
             }
         }
 
-        // Permettre de créer un salon avec Enter
+        // Permettre de créer un salon avec Enter et fermer avec Escape
         document.addEventListener('DOMContentLoaded', () => {
             const newRoomNameInput = document.getElementById('newRoomName');
             if (newRoomNameInput) {
                 newRoomNameInput.addEventListener('keypress', (e) => {
                     if (e.key === 'Enter') {
                         createRoom();
+                    }
+                });
+                
+                // Fermer la modal avec Escape
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') {
+                        const modal = document.getElementById('createRoomModal');
+                        if (modal && !modal.classList.contains('hidden')) {
+                            hideCreateRoomModal();
+                        }
                     }
                 });
             }

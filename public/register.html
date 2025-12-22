@@ -73,6 +73,17 @@
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
 
+        .form-group input.error {
+            border-color: #dc3545;
+            animation: shake 0.3s;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
         .form-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -138,6 +149,12 @@
             background: #f8d7da;
             color: #721c24;
             border: 1px solid #f5c6cb;
+        }
+
+        .alert-error a {
+            color: #667eea;
+            text-decoration: underline;
+            font-weight: bold;
         }
 
         .password-requirements {
@@ -234,6 +251,10 @@
         async function handleRegister(event) {
             event.preventDefault();
             
+            // Réinitialiser les styles d'erreur
+            document.getElementById('username').style.borderColor = '';
+            document.getElementById('email').style.borderColor = '';
+            
             const username = document.getElementById('username').value;
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
@@ -242,11 +263,13 @@
 
             if (username.length < 3) {
                 showAlert('Le nom d\'utilisateur doit contenir au moins 3 caractères');
+                document.getElementById('username').classList.add('error');
                 return;
             }
 
             if (password.length < 6) {
                 showAlert('Le mot de passe doit contenir au moins 6 caractères');
+                document.getElementById('password').classList.add('error');
                 return;
             }
 
@@ -266,14 +289,48 @@
                 const data = await response.json();
                 if (response.ok) {
                     // Stocker le token et les infos utilisateur
-                    localStorage.setItem('token', data.access_token);
-                    localStorage.setItem('user', JSON.stringify(data.user));
-                    showAlert('Inscription réussie ! Redirection...', 'success');
-                    setTimeout(() => {
-                        window.location.href = 'chat.html';
-                    }, 1000);
+                    // Le serveur renvoie accessToken (camelCase) ou access_token (snake_case)
+                    const token = data.accessToken || data.access_token;
+                    if (token) {
+                        localStorage.setItem('token', token);
+                        localStorage.setItem('user', JSON.stringify(data.user));
+                        showAlert('Inscription réussie ! Redirection...', 'success');
+                        setTimeout(() => {
+                            window.location.href = 'chat.html';
+                        }, 1000);
+                    } else {
+                        console.error('Réponse du serveur:', data);
+                        showAlert('Erreur: Token non reçu du serveur. Réponse: ' + JSON.stringify(data));
+                    }
                 } else {
-                    showAlert(data.message || 'Erreur lors de l\'inscription');
+                    // Gérer les erreurs spécifiques
+                    let errorMessage = 'Erreur lors de l\'inscription';
+                    if (response.status === 409) {
+                        // Conflit - email ou username déjà utilisé
+                        const message = data.message || '';
+                        if (message.includes('email') || message.includes('Email')) {
+                            errorMessage = 'Cet email est déjà utilisé. <a href="login.html" style="color: #667eea; text-decoration: underline;">Connectez-vous</a> ou choisissez un autre email.';
+                            // Mettre en évidence le champ email
+                            document.getElementById('email').classList.add('error');
+                            setTimeout(() => {
+                                document.getElementById('email').classList.remove('error');
+                            }, 3000);
+                        } else if (message.includes('username') || message.includes('nom d\'utilisateur') || message.includes('pris')) {
+                            errorMessage = 'Ce nom d\'utilisateur est déjà pris. Veuillez en choisir un autre.';
+                            // Mettre en évidence le champ username
+                            document.getElementById('username').classList.add('error');
+                            setTimeout(() => {
+                                document.getElementById('username').classList.remove('error');
+                            }, 3000);
+                        } else {
+                            errorMessage = 'Cet email ou ce nom d\'utilisateur est déjà utilisé.';
+                        }
+                    } else if (response.status === 400) {
+                        errorMessage = data.message || 'Données invalides. Vérifiez vos informations.';
+                    } else {
+                        errorMessage = data.message || 'Erreur lors de l\'inscription';
+                    }
+                    showAlert(errorMessage);
                 }
             } catch (error) {
                 showAlert(`Erreur: ${error.message}`);

@@ -52,10 +52,20 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       let payload;
       try {
         const secret = process.env.JWT_SECRET || 'your-secret-key';
-        payload = this.jwtService.verify(token as string, { secret });
+        // Vérifier que le token est une chaîne valide
+        if (typeof token !== 'string' || !token.trim()) {
+          throw new Error('Token invalide: format incorrect');
+        }
+        payload = this.jwtService.verify(token.trim(), { secret });
       } catch (error) {
         this.logger.error(`JWT verification failed: ${error.message}`, error.stack);
-        client.emit('error', { message: 'Token invalide ou expiré' });
+        let errorMessage = 'Token invalide ou expiré';
+        if (error.name === 'TokenExpiredError') {
+          errorMessage = 'Token expiré. Veuillez vous reconnecter.';
+        } else if (error.name === 'JsonWebTokenError') {
+          errorMessage = 'Token invalide. Veuillez vous reconnecter.';
+        }
+        client.emit('error', { message: errorMessage });
         client.disconnect();
         return;
       }
