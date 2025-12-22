@@ -22,5 +22,15 @@ export class UpdateUserDto {
   @IsString()
   @IsOptional()
   lastName?: string;
+
+  @IsOptional()
+  isOnline?: boolean;
+
+  @IsOptional()
+  lastSeen?: Date;
+
+  @IsString()
+  @IsOptional()
+  avatar?: string;
 }
 

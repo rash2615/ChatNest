@@ -25,6 +25,15 @@ export class User {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @Column({ default: false })
+  isOnline: boolean;
+
+  @Column({ nullable: true })
+  lastSeen: Date;
+
+  @Column({ nullable: true })
+  avatar?: string;
 }
 
 export type UserWithoutPassword = Omit<User, 'password'>;

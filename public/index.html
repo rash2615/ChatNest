@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChatNest - Messagerie Instantanée</title>
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            width: 90%;
+            max-width: 1200px;
+            height: 90vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #4ade80;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .main-content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 300px;
+            background: #f8f9fa;
+            border-right: 1px solid #e9ecef;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .login-section {
+            padding: 20px;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .login-section input {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        .login-section button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 10px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .login-section button:hover {
+            background: #5568d3;
+        }
+
+        .rooms-section {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .rooms-section h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .room-item {
+            padding: 12px;
+            margin: 5px 0;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+
+        .room-item:hover {
+            background: #e9ecef;
+        }
+
+        .room-item.active {
+            border-color: #667eea;
+            background: #e7e9fd;
+        }
+
+        .users-section {
+            padding: 20px;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .users-section h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .user-item {
+            padding: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .user-online {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4ade80;
+        }
+
+        .user-offline {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #9ca3af;
+        }
+
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-header {
+            padding: 15px 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .typing-indicator {
+            font-style: italic;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f8f9fa;
+        }
+
+        .message {
+            margin: 15px 0;
+            padding: 12px;
+            background: white;
+            border-radius: 10px;
+            max-width: 70%;
+            animation: slideIn 0.3s;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.own {
+            margin-left: auto;
+            background: #667eea;
+            color: white;
+        }
+
+        .message-header {
+            font-weight: bold;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+
+        .message-content {
+            word-wrap: break-word;
+        }
+
+        .message-time {
+            font-size: 11px;
+            opacity: 0.7;
+            margin-top: 5px;
+        }
+
+        .input-area {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e9ecef;
+            display: flex;
+            gap: 10px;
+        }
+
+        .input-area input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 25px;
+            outline: none;
+        }
+
+        .input-area button {
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .input-area button:hover {
+            background: #5568d3;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .error {
+            color: #dc3545;
+            padding: 10px;
+            background: #f8d7da;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+
+        .success {
+            color: #155724;
+            padding: 10px;
+            background: #d4edda;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💬 ChatNest - Messagerie Instantanée</h1>
+            <div class="status">
+                <span id="connectionStatus">Déconnecté</span>
+                <div class="status-indicator hidden" id="statusIndicator"></div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="sidebar">
+                <div class="login-section" id="loginSection">
+                    <h3>Connexion</h3>
+                    <input type="email" id="emailInput" placeholder="Email" value="test@example.com">
+                    <input type="password" id="passwordInput" placeholder="Mot de passe" value="password123">
+                    <button onclick="login()">Se connecter</button>
+                    <button onclick="register()" style="background: #28a745; margin-top: 5px;">S'inscrire</button>
+                    <div id="authMessage"></div>
+                </div>
+
+                <div class="rooms-section hidden" id="roomsSection">
+                    <h3>Salons</h3>
+                    <div id="roomsList"></div>
+                    <button onclick="createRoom()" style="width: 100%; padding: 10px; margin-top: 10px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer;">+ Créer un salon</button>
+                </div>
+
+                <div class="users-section hidden" id="usersSection">
+                    <h3>Utilisateurs en ligne</h3>
+                    <div id="usersList"></div>
+                </div>
+            </div>
+
+            <div class="chat-area hidden" id="chatArea">
+                <div class="chat-header">
+                    <h3 id="currentRoom">Salon général</h3>
+                    <div class="typing-indicator hidden" id="typingIndicator"></div>
+                </div>
+                <div class="messages-container" id="messagesContainer"></div>
+                <div class="input-area">
+                    <input type="text" id="messageInput" placeholder="Tapez votre message..." onkeypress="handleKeyPress(event)" oninput="handleTyping()">
+                    <button onclick="sendMessage()">Envoyer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let socket = null;
+        let currentUser = null;
+        let currentToken = null;
+        let currentRoom = null;
+        let typingTimeout = null;
+
+        const API_URL = 'http://localhost:3000';
+
+        async function login() {
+            const email = document.getElementById('emailInput').value;
+            const password = document.getElementById('passwordInput').value;
+            const messageDiv = document.getElementById('authMessage');
+
+            try {
+                const response = await fetch(`${API_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    currentToken = data.access_token;
+                    currentUser = { email, ...data.user };
+                    messageDiv.innerHTML = '<div class="success">Connexion réussie!</div>';
+                    connectWebSocket();
+                    loadRooms();
+                } else {
+                    messageDiv.innerHTML = `<div class="error">${data.message || 'Erreur de connexion'}</div>`;
+                }
+            } catch (error) {
+                messageDiv.innerHTML = `<div class="error">Erreur: ${error.message}</div>`;
+            }
+        }
+
+        async function register() {
+            const email = document.getElementById('emailInput').value;
+            const password = document.getElementById('passwordInput').value;
+            const username = email.split('@')[0];
+            const messageDiv = document.getElementById('authMessage');
+
+            try {
+                const response = await fetch(`${API_URL}/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password, username })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    currentToken = data.access_token;
+                    currentUser = { email, username, ...data.user };
+                    messageDiv.innerHTML = '<div class="success">Inscription réussie!</div>';
+                    connectWebSocket();
+                    loadRooms();
+                } else {
+                    messageDiv.innerHTML = `<div class="error">${data.message || 'Erreur d\'inscription'}</div>`;
+                }
+            } catch (error) {
+                messageDiv.innerHTML = `<div class="error">Erreur: ${error.message}</div>`;
+            }
+        }
+
+        function connectWebSocket() {
+            socket = io(`${API_URL}/chat`, {
+                auth: { token: currentToken },
+                transports: ['websocket']
+            });
+
+            socket.on('connect', () => {
+                document.getElementById('connectionStatus').textContent = 'Connecté';
+                document.getElementById('statusIndicator').classList.remove('hidden');
+                document.getElementById('loginSection').classList.add('hidden');
+                document.getElementById('roomsSection').classList.remove('hidden');
+                document.getElementById('usersSection').classList.remove('hidden');
+                document.getElementById('chatArea').classList.remove('hidden');
+                loadOnlineUsers();
+            });
+
+            socket.on('disconnect', () => {
+                document.getElementById('connectionStatus').textContent = 'Déconnecté';
+                document.getElementById('statusIndicator').classList.add('hidden');
+            });
+
+            socket.on('newMessage', (data) => {
+                addMessage(data);
+            });
+
+            socket.on('userStatusChanged', (data) => {
+                loadOnlineUsers();
+            });
+
+            socket.on('userTyping', (data) => {
+                showTypingIndicator(data);
+            });
+
+            socket.on('userJoinedRoom', (data) => {
+                addSystemMessage(`${data.username} a rejoint le salon`);
+            });
+
+            socket.on('userLeftRoom', (data) => {
+                addSystemMessage(`${data.username} a quitté le salon`);
+            });
+
+            socket.on('error', (data) => {
+                console.error('WebSocket error:', data);
+            });
+
+            socket.on('onlineUsers', (data) => {
+                console.log('Online users:', data);
+            });
+        }
+
+        async function loadRooms() {
+            try {
+                const response = await fetch(`${API_URL}/rooms`, {
+                    headers: { 'Authorization': `Bearer ${currentToken}` }
+                });
+                const rooms = await response.json();
+                const roomsList = document.getElementById('roomsList');
+                roomsList.innerHTML = '';
+
+                // Ajouter le salon général
+                const generalRoom = document.createElement('div');
+                generalRoom.className = 'room-item active';
+                generalRoom.textContent = 'Salon général';
+                generalRoom.onclick = () => joinRoom(null, 'Salon général');
+                roomsList.appendChild(generalRoom);
+
+                rooms.forEach(room => {
+                    const roomItem = document.createElement('div');
+                    roomItem.className = 'room-item';
+                    roomItem.textContent = room.name;
+                    roomItem.onclick = () => joinRoom(room.id, room.name);
+                    roomsList.appendChild(roomItem);
+                });
+            } catch (error) {
+                console.error('Error loading rooms:', error);
+            }
+        }
+
+        function joinRoom(roomId, roomName) {
+            currentRoom = roomId;
+            document.getElementById('currentRoom').textContent = roomName;
+            document.querySelectorAll('.room-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            if (roomId) {
+                socket.emit('joinRoom', { roomId });
+                loadRoomMessages(roomId);
+            } else {
+                document.getElementById('messagesContainer').innerHTML = '';
+            }
+        }
+
+        async function loadRoomMessages(roomId) {
+            if (!roomId) return;
+            socket.emit('getRoomMessages', { roomId });
+            socket.once('roomMessages', (data) => {
+                document.getElementById('messagesContainer').innerHTML = '';
+                data.messages.forEach(msg => {
+                    addMessage(msg);
+                });
+            });
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const content = input.value.trim();
+            if (!content || !socket) return;
+
+            socket.emit('sendMessage', {
+                content,
+                roomId: currentRoom || undefined
+            });
+
+            input.value = '';
+            socket.emit('typing', { roomId: currentRoom, isTyping: false });
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        function handleTyping() {
+            if (!socket || !currentRoom) return;
+
+            socket.emit('typing', { roomId: currentRoom, isTyping: true });
+
+            clearTimeout(typingTimeout);
+            typingTimeout = setTimeout(() => {
+                socket.emit('typing', { roomId: currentRoom, isTyping: false });
+            }, 1000);
+        }
+
+        function addMessage(data) {
+            const container = document.getElementById('messagesContainer');
+            const messageDiv = document.createElement('div');
+            const isOwn = data.userId === currentUser?.id;
+            messageDiv.className = `message ${isOwn ? 'own' : ''}`;
+
+            messageDiv.innerHTML = `
+                <div class="message-header">${data.username || 'Utilisateur'}</div>
+                <div class="message-content">${data.content}</div>
+                <div class="message-time">${new Date(data.timestamp || Date.now()).toLocaleTimeString()}</div>
+            `;
+
+            container.appendChild(messageDiv);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function addSystemMessage(text) {
+            const container = document.getElementById('messagesContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.style.textAlign = 'center';
+            messageDiv.style.color = '#666';
+            messageDiv.style.fontStyle = 'italic';
+            messageDiv.style.margin = '10px 0';
+            messageDiv.textContent = text;
+            container.appendChild(messageDiv);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function showTypingIndicator(data) {
+            const indicator = document.getElementById('typingIndicator');
+            if (data.isTyping && data.userId !== currentUser?.id) {
+                indicator.textContent = `${data.username} est en train de taper...`;
+                indicator.classList.remove('hidden');
+            } else {
+                indicator.classList.add('hidden');
+            }
+        }
+
+        async function loadOnlineUsers() {
+            if (!socket) return;
+            socket.emit('getConnectedUsers');
+            socket.once('connectedUsers', (data) => {
+                const usersList = document.getElementById('usersList');
+                usersList.innerHTML = '';
+                data.users.forEach(user => {
+                    const userItem = document.createElement('div');
+                    userItem.className = 'user-item';
+                    userItem.innerHTML = `
+                        <div class="${user.isOnline ? 'user-online' : 'user-offline'}"></div>
+                        <span>${user.username}</span>
+                    `;
+                    usersList.appendChild(userItem);
+                });
+            });
+        }
+
+        async function createRoom() {
+            const roomName = prompt('Nom du salon:');
+            if (!roomName) return;
+
+            try {
+                const response = await fetch(`${API_URL}/rooms`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${currentToken}`
+                    },
+                    body: JSON.stringify({ name: roomName })
+                });
+
+                if (response.ok) {
+                    loadRooms();
+                }
+            } catch (error) {
+                console.error('Error creating room:', error);
+            }
+        }
+    </script>
+</body>
+</html>
+
