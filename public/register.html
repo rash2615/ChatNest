@@ -12,8 +12,8 @@
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Times New Roman', Times, serif;
+            background: linear-gradient(135deg, #8B6F47 0%, #6B4E3D 100%);
             min-height: 100vh;
             display: flex;
             justify-content: center;
@@ -22,9 +22,10 @@
         }
 
         .register-container {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            background: #FAF5F0;
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(107, 78, 61, 0.4);
+            border: 2px solid #D4C4B0;
             width: 100%;
             max-width: 500px;
             padding: 40px;
@@ -37,8 +38,9 @@
 
         .logo h1 {
             font-size: 32px;
-            color: #667eea;
+            color: #6B4E3D;
             margin-bottom: 10px;
+            font-weight: bold;
         }
 
         .logo p {
@@ -53,28 +55,31 @@
         .form-group label {
             display: block;
             margin-bottom: 8px;
-            color: #333;
-            font-weight: 500;
+            color: #5D4037;
+            font-weight: bold;
             font-size: 14px;
         }
 
         .form-group input {
             width: 100%;
             padding: 12px 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 10px;
+            border: 2px solid #D4C4B0;
+            border-radius: 6px;
             font-size: 16px;
+            font-family: 'Times New Roman', Times, serif;
+            background: #FFFFFF;
+            color: #3E2723;
             transition: all 0.3s;
             outline: none;
         }
 
         .form-group input:focus {
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: #8B6F47;
+            box-shadow: 0 0 0 3px rgba(139, 111, 71, 0.2);
         }
 
         .form-group input.error {
-            border-color: #dc3545;
+            border-color: #8B6F47;
             animation: shake 0.3s;
         }
 
@@ -93,20 +98,21 @@
         .btn-primary {
             width: 100%;
             padding: 14px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 10px;
+            background: linear-gradient(135deg, #8B6F47 0%, #6B4E3D 100%);
+            color: #FAF5F0;
+            border: 2px solid #6B4E3D;
+            border-radius: 6px;
             font-size: 16px;
+            font-family: 'Times New Roman', Times, serif;
             font-weight: bold;
             cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
+            transition: all 0.3s;
             margin-top: 10px;
         }
 
         .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+            background: linear-gradient(135deg, #9D7A5A 0%, #7D5A3D 100%);
+            box-shadow: 0 4px 12px rgba(107, 78, 61, 0.4);
         }
 
         .btn-primary:active {
@@ -116,11 +122,12 @@
         .btn-secondary {
             width: 100%;
             padding: 14px;
-            background: #f8f9fa;
-            color: #667eea;
-            border: 2px solid #667eea;
-            border-radius: 10px;
+            background: #F0E6D2;
+            color: #6B4E3D;
+            border: 2px solid #8B6F47;
+            border-radius: 6px;
             font-size: 16px;
+            font-family: 'Times New Roman', Times, serif;
             font-weight: bold;
             cursor: pointer;
             transition: all 0.3s;
@@ -128,8 +135,8 @@
         }
 
         .btn-secondary:hover {
-            background: #667eea;
-            color: white;
+            background: #E8D5C4;
+            border-color: #6B4E3D;
         }
 
         .alert {
@@ -140,15 +147,15 @@
         }
 
         .alert-success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
+            background: #E8D5C4;
+            color: #5D4037;
+            border: 2px solid #A0826D;
         }
 
         .alert-error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
+            background: #F0E6D2;
+            color: #6B4E3D;
+            border: 2px solid #8B6F47;
         }
 
         .alert-error a {
@@ -159,19 +166,19 @@
 
         .password-requirements {
             font-size: 12px;
-            color: #666;
+            color: #7D5A3D;
             margin-top: 5px;
         }
 
         .footer {
             text-align: center;
             margin-top: 30px;
-            color: #999;
+            color: #7D5A3D;
             font-size: 14px;
         }
 
         .footer a {
-            color: #667eea;
+            color: #8B6F47;
             text-decoration: none;
         }
 
@@ -309,7 +316,7 @@
                         // Conflit - email ou username déjà utilisé
                         const message = data.message || '';
                         if (message.includes('email') || message.includes('Email')) {
-                            errorMessage = 'Cet email est déjà utilisé. <a href="login.html" style="color: #667eea; text-decoration: underline;">Connectez-vous</a> ou choisissez un autre email.';
+                            errorMessage = 'Cet email est déjà utilisé. <a href="login.html" style="color: #8B6F47; text-decoration: underline;">Connectez-vous</a> ou choisissez un autre email.';
                             // Mettre en évidence le champ email
                             document.getElementById('email').classList.add('error');
                             setTimeout(() => {
