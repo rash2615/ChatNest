@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChatNest - Messagerie</title>
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .header h1 {
+            font-size: 20px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .user-avatar {
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #4ade80;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .btn-logout {
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .btn-logout:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 300px;
+            background: white;
+            border-right: 1px solid #e0e0e0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .sidebar-section {
+            padding: 20px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .sidebar-section h3 {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .rooms-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        .room-item {
+            padding: 12px 15px;
+            margin: 5px 0;
+            background: #f8f9fa;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .room-item:hover {
+            background: #e9ecef;
+        }
+
+        .room-item.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: #667eea;
+        }
+
+        .room-name {
+            font-weight: 500;
+        }
+
+        .room-badge {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+        }
+
+        .btn-create-room {
+            width: 100%;
+            padding: 12px;
+            margin: 10px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+
+        .btn-create-room:hover {
+            transform: translateY(-2px);
+        }
+
+        .users-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .user-item {
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+
+        .user-item:hover {
+            background: #f8f9fa;
+        }
+
+        .user-online, .user-offline {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .user-online {
+            background: #4ade80;
+        }
+
+        .user-offline {
+            background: #9ca3af;
+        }
+
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: white;
+        }
+
+        .chat-header {
+            padding: 15px 20px;
+            background: white;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-header h2 {
+            font-size: 18px;
+            color: #333;
+        }
+
+        .typing-indicator {
+            font-style: italic;
+            color: #666;
+            font-size: 13px;
+        }
+
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f8f9fa;
+        }
+
+        .message {
+            margin: 15px 0;
+            padding: 12px 15px;
+            background: white;
+            border-radius: 12px;
+            max-width: 70%;
+            animation: slideIn 0.3s;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.own {
+            margin-left: auto;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .message-header {
+            font-weight: 600;
+            margin-bottom: 5px;
+            font-size: 13px;
+            opacity: 0.9;
+        }
+
+        .message-content {
+            word-wrap: break-word;
+            line-height: 1.5;
+        }
+
+        .message-time {
+            font-size: 11px;
+            opacity: 0.7;
+            margin-top: 5px;
+        }
+
+        .system-message {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            margin: 10px 0;
+            font-size: 13px;
+        }
+
+        .input-area {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            gap: 10px;
+        }
+
+        .input-area input {
+            flex: 1;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 25px;
+            outline: none;
+            font-size: 15px;
+            transition: border-color 0.3s;
+        }
+
+        .input-area input:focus {
+            border-color: #667eea;
+        }
+
+        .input-area button {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+
+        .input-area button:hover {
+            transform: translateY(-2px);
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .empty-state h3 {
+            margin-bottom: 10px;
+            color: #666;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 250px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-left">
+            <h1>💬 ChatNest</h1>
+            <div class="status-indicator" id="statusIndicator"></div>
+            <span id="connectionStatus">Connecté</span>
+        </div>
+        <div class="user-info">
+            <div class="user-avatar" id="userAvatar">U</div>
+            <div>
+                <div style="font-weight: 600;" id="userName">Utilisateur</div>
+                <div style="font-size: 12px; opacity: 0.8;" id="userEmail">email@example.com</div>
+            </div>
+            <button class="btn-logout" onclick="logout()">Déconnexion</button>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div class="sidebar">
+            <div class="sidebar-section">
+                <h3>Salons</h3>
+                <button class="btn-create-room" onclick="showCreateRoomModal()">+ Créer un salon</button>
+            </div>
+            <div class="rooms-list" id="roomsList">
+                <div class="room-item active" onclick="joinRoom(null, 'Salon général', this)">
+                    <span class="room-name">Salon général</span>
+                </div>
+            </div>
+            <div class="sidebar-section">
+                <h3>Utilisateurs en ligne</h3>
+                <div class="users-list" id="usersList"></div>
+            </div>
+        </div>
+
+        <div class="chat-area">
+            <div class="chat-header">
+                <h2 id="currentRoom">Salon général</h2>
+                <div class="typing-indicator hidden" id="typingIndicator"></div>
+            </div>
+            <div class="messages-container" id="messagesContainer">
+                <div class="empty-state">
+                    <h3>Bienvenue sur ChatNest !</h3>
+                    <p>Sélectionnez un salon ou créez-en un nouveau pour commencer à chatter.</p>
+                </div>
+            </div>
+            <div class="input-area">
+                <input type="text" id="messageInput" placeholder="Tapez votre message..." onkeypress="handleKeyPress(event)" oninput="handleTyping()">
+                <button onclick="sendMessage()">Envoyer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal pour créer un salon -->
+    <div id="createRoomModal" class="hidden" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000;">
+        <div style="background: white; padding: 30px; border-radius: 15px; width: 90%; max-width: 400px;">
+            <h2 style="margin-bottom: 20px;">Créer un nouveau salon</h2>
+            <input type="text" id="newRoomName" placeholder="Nom du salon" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; margin-bottom: 15px; font-size: 16px;">
+            <div style="display: flex; gap: 10px;">
+                <button onclick="createRoom()" style="flex: 1; padding: 12px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">Créer</button>
+                <button onclick="hideCreateRoomModal()" style="flex: 1; padding: 12px; background: #f8f9fa; color: #333; border: 1px solid #e0e0e0; border-radius: 8px; cursor: pointer;">Annuler</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let socket = null;
+        let currentUser = null;
+        let currentToken = null;
+        let currentRoom = null;
+        let typingTimeout = null;
+
+        const API_URL = 'http://localhost:3000';
+
+        // Vérifier l'authentification
+        window.addEventListener('DOMContentLoaded', () => {
+            currentToken = localStorage.getItem('token');
+            const userStr = localStorage.getItem('user');
+            
+            if (!currentToken || !userStr) {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            currentUser = JSON.parse(userStr);
+            document.getElementById('userName').textContent = currentUser.username || 'Utilisateur';
+            document.getElementById('userEmail').textContent = currentUser.email || '';
+            document.getElementById('userAvatar').textContent = (currentUser.username || 'U')[0].toUpperCase();
+
+            connectWebSocket();
+            loadRooms();
+        });
+
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            if (socket) {
+                socket.disconnect();
+            }
+            window.location.href = 'login.html';
+        }
+
+        function connectWebSocket() {
+            if (!currentToken) {
+                console.error('No token available');
+                return;
+            }
+
+            socket = io(`${API_URL}/chat`, {
+                auth: { token: currentToken },
+                transports: ['websocket', 'polling'],
+                reconnection: true,
+                reconnectionDelay: 1000,
+                reconnectionAttempts: 5
+            });
+
+            socket.on('connect', () => {
+                console.log('WebSocket connected:', socket.id);
+                document.getElementById('connectionStatus').textContent = 'Connecté';
+                document.getElementById('statusIndicator').style.display = 'block';
+                loadOnlineUsers();
+            });
+
+            socket.on('connect_error', (error) => {
+                console.error('WebSocket connection error:', error);
+                document.getElementById('connectionStatus').textContent = 'Erreur';
+                if (error.message && error.message.includes('Token')) {
+                    alert('Votre session a expiré. Veuillez vous reconnecter.');
+                    logout();
+                } else {
+                    alert('Erreur de connexion WebSocket. Veuillez vous reconnecter.');
+                }
+            });
+
+            socket.on('disconnect', (reason) => {
+                console.log('WebSocket disconnected:', reason);
+                document.getElementById('connectionStatus').textContent = 'Déconnecté';
+                document.getElementById('statusIndicator').style.display = 'none';
+            });
+
+            socket.on('newMessage', (data) => {
+                addMessage(data);
+            });
+
+            socket.on('userStatusChanged', (data) => {
+                loadOnlineUsers();
+            });
+
+            socket.on('userTyping', (data) => {
+                showTypingIndicator(data);
+            });
+
+            socket.on('userJoinedRoom', (data) => {
+                addSystemMessage(`${data.username} a rejoint le salon`);
+            });
+
+            socket.on('userLeftRoom', (data) => {
+                addSystemMessage(`${data.username} a quitté le salon`);
+            });
+
+            socket.on('error', (data) => {
+                console.error('WebSocket error:', data);
+                const errorMessage = data.message || 'Erreur inconnue';
+                if (errorMessage.includes('Token') || errorMessage.includes('invalide') || errorMessage.includes('expiré')) {
+                    alert('Votre session a expiré. Veuillez vous reconnecter.');
+                    logout();
+                } else {
+                    alert(`Erreur: ${errorMessage}`);
+                }
+            });
+
+            socket.on('roomJoined', (data) => {
+                console.log('Room joined:', data);
+            });
+        }
+
+        async function loadRooms() {
+            try {
+                const response = await fetch(`${API_URL}/rooms`, {
+                    headers: { 'Authorization': `Bearer ${currentToken}` }
+                });
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        alert('Votre session a expiré. Veuillez vous reconnecter.');
+                        logout();
+                        return;
+                    }
+                    return;
+                }
+                
+                const rooms = await response.json();
+                const roomsList = document.getElementById('roomsList');
+                roomsList.innerHTML = '';
+
+                // Salon général
+                const generalRoom = document.createElement('div');
+                generalRoom.className = 'room-item active';
+                generalRoom.innerHTML = '<span class="room-name">Salon général</span>';
+                generalRoom.onclick = () => joinRoom(null, 'Salon général');
+                roomsList.appendChild(generalRoom);
+
+                // Autres salons
+                rooms.forEach(room => {
+                    const roomItem = document.createElement('div');
+                    roomItem.className = 'room-item';
+                    roomItem.innerHTML = `
+                        <span class="room-name">${room.name}</span>
+                        <span class="room-badge">${room.members?.length || 0}</span>
+                    `;
+                    roomItem.onclick = () => joinRoom(room.id, room.name);
+                    roomsList.appendChild(roomItem);
+                });
+            } catch (error) {
+                console.error('Error loading rooms:', error);
+            }
+        }
+
+        function joinRoom(roomId, roomName, roomElement = null) {
+            currentRoom = roomId;
+            document.getElementById('currentRoom').textContent = roomName;
+            
+            // Mettre à jour l'état actif
+            document.querySelectorAll('.room-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            if (roomElement) {
+                roomElement.classList.add('active');
+            } else if (event && event.target) {
+                const roomItem = event.target.closest('.room-item');
+                if (roomItem) {
+                    roomItem.classList.add('active');
+                }
+            }
+
+            // Vider les messages
+            const container = document.getElementById('messagesContainer');
+            container.innerHTML = '';
+
+            if (roomId && socket) {
+                socket.emit('joinRoom', { roomId });
+                loadRoomMessages(roomId);
+            } else if (!roomId) {
+                container.innerHTML = '<div class="empty-state"><h3>Salon général</h3><p>Envoyez un message pour commencer</p></div>';
+            }
+        }
+
+        async function loadRoomMessages(roomId) {
+            if (!roomId) return;
+            socket.emit('getRoomMessages', { roomId });
+            socket.once('roomMessages', (data) => {
+                const container = document.getElementById('messagesContainer');
+                container.innerHTML = '';
+                if (data.messages.length === 0) {
+                    container.innerHTML = '<div class="empty-state"><p>Aucun message dans ce salon</p></div>';
+                } else {
+                    data.messages.forEach(msg => {
+                        addMessage(msg);
+                    });
+                }
+            });
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const content = input.value.trim();
+            if (!content || !socket) return;
+
+            socket.emit('sendMessage', {
+                content,
+                roomId: currentRoom || undefined
+            });
+
+            input.value = '';
+            if (currentRoom) {
+                socket.emit('typing', { roomId: currentRoom, isTyping: false });
+            }
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        function handleTyping() {
+            if (!socket || !currentRoom) return;
+
+            socket.emit('typing', { roomId: currentRoom, isTyping: true });
+
+            clearTimeout(typingTimeout);
+            typingTimeout = setTimeout(() => {
+                socket.emit('typing', { roomId: currentRoom, isTyping: false });
+            }, 1000);
+        }
+
+        function addMessage(data) {
+            const container = document.getElementById('messagesContainer');
+            
+            // Retirer l'état vide s'il existe
+            const emptyState = container.querySelector('.empty-state');
+            if (emptyState) {
+                emptyState.remove();
+            }
+
+            const messageDiv = document.createElement('div');
+            const isOwn = data.userId === currentUser?.id;
+            messageDiv.className = `message ${isOwn ? 'own' : ''}`;
+
+            const timestamp = data.timestamp ? new Date(data.timestamp) : new Date();
+            messageDiv.innerHTML = `
+                <div class="message-header">${data.username || 'Utilisateur'}</div>
+                <div class="message-content">${data.content}</div>
+                <div class="message-time">${timestamp.toLocaleTimeString()}</div>
+            `;
+
+            container.appendChild(messageDiv);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function addSystemMessage(text) {
+            const container = document.getElementById('messagesContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'system-message';
+            messageDiv.textContent = text;
+            container.appendChild(messageDiv);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function showTypingIndicator(data) {
+            const indicator = document.getElementById('typingIndicator');
+            if (data.isTyping && data.userId !== currentUser?.id) {
+                indicator.textContent = `${data.username} est en train de taper...`;
+                indicator.classList.remove('hidden');
+            } else {
+                indicator.classList.add('hidden');
+            }
+        }
+
+        async function loadOnlineUsers() {
+            if (!socket) return;
+            socket.emit('getConnectedUsers');
+            socket.once('connectedUsers', (data) => {
+                const usersList = document.getElementById('usersList');
+                usersList.innerHTML = '';
+                
+                if (data.users.length === 0) {
+                    usersList.innerHTML = '<div style="padding: 10px; color: #999; font-size: 13px;">Aucun utilisateur en ligne</div>';
+                } else {
+                    data.users.forEach(user => {
+                        const userItem = document.createElement('div');
+                        userItem.className = 'user-item';
+                        userItem.innerHTML = `
+                            <div class="${user.isOnline ? 'user-online' : 'user-offline'}"></div>
+                            <span>${user.username}</span>
+                        `;
+                        usersList.appendChild(userItem);
+                    });
+                }
+            });
+        }
+
+        function showCreateRoomModal() {
+            document.getElementById('createRoomModal').classList.remove('hidden');
+            document.getElementById('newRoomName').focus();
+        }
+
+        function hideCreateRoomModal() {
+            document.getElementById('createRoomModal').classList.add('hidden');
+            document.getElementById('newRoomName').value = '';
+        }
+
+        async function createRoom() {
+            const roomName = document.getElementById('newRoomName').value.trim();
+            if (!roomName || roomName.length < 3) {
+                alert('Le nom du salon doit contenir au moins 3 caractères');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/rooms`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${currentToken}`
+                    },
+                    body: JSON.stringify({ name: roomName })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    hideCreateRoomModal();
+                    await loadRooms();
+                    setTimeout(() => {
+                        // Trouver l'élément de la room créée
+                        const roomItems = document.querySelectorAll('.room-item');
+                        const newRoomItem = Array.from(roomItems).find(item => 
+                            item.textContent.includes(data.name)
+                        );
+                        joinRoom(data.id, data.name, newRoomItem || null);
+                    }, 200);
+                } else {
+                    alert(`Erreur: ${data.message || 'Impossible de créer le salon'}`);
+                }
+            } catch (error) {
+                alert(`Erreur: ${error.message}`);
+            }
+        }
+
+        // Permettre de créer un salon avec Enter
+        document.addEventListener('DOMContentLoaded', () => {
+            const newRoomNameInput = document.getElementById('newRoomName');
+            if (newRoomNameInput) {
+                newRoomNameInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        createRoom();
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>
+

@@ -34,9 +34,12 @@ async function bootstrap() {
   const port = process.env.PORT || 3000;
   await app.listen(port);
   console.log(`Application is running on: http://localhost:${port}`);
-  console.log(`Interface web: http://localhost:${port}/`);
-  console.log('Database: SQLite (chatnest.db)');
-  console.log('WebSocket namespace: /chat');
+  console.log(`\n📱 Pages disponibles:`);
+  console.log(`   - Connexion: http://localhost:${port}/login.html`);
+  console.log(`   - Inscription: http://localhost:${port}/register.html`);
+  console.log(`   - Chat: http://localhost:${port}/chat.html`);
+  console.log(`\n💾 Database: SQLite (chatnest.db)`);
+  console.log(`🔌 WebSocket namespace: /chat`);
 }
 bootstrap();
 

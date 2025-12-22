@@ -11,7 +11,7 @@ export class CreateRoomDto {
   description?: string;
 
   @IsString()
-  @IsNotEmpty()
-  createdBy: string;
+  @IsOptional()
+  createdBy?: string; // Sera rempli automatiquement depuis le token JWT
 }
 

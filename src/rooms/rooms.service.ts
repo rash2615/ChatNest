@@ -16,6 +16,10 @@ export class RoomsService {
   ) {}
 
   async create(createRoomDto: CreateRoomDto): Promise<Room> {
+    if (!createRoomDto.createdBy) {
+      throw new Error('createdBy is required');
+    }
+
     // Vérifier si une salle avec le même nom existe déjà
     const existingRoom = await this.roomRepository.findOne({
       where: { name: createRoomDto.name },
@@ -24,19 +28,20 @@ export class RoomsService {
       throw new ConflictException('Une salle avec ce nom existe déjà');
     }
 
+    // Vérifier que le créateur existe
+    const creator = await this.userRepository.findOne({
+      where: { id: createRoomDto.createdBy },
+    });
+    if (!creator) {
+      throw new NotFoundException(`Utilisateur avec l'ID ${createRoomDto.createdBy} introuvable`);
+    }
+
     const room = this.roomRepository.create({
       name: createRoomDto.name,
       description: createRoomDto.description,
       createdBy: createRoomDto.createdBy,
+      members: [creator], // Ajouter le créateur comme membre
     });
-
-    // Ajouter le créateur comme membre
-    const creator = await this.userRepository.findOne({
-      where: { id: createRoomDto.createdBy },
-    });
-    if (creator) {
-      room.members = [creator];
-    }
 
     return await this.roomRepository.save(room);
   }

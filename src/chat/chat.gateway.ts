@@ -44,12 +44,30 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const token = client.handshake.auth?.token || client.handshake.query?.token;
       if (!token) {
         this.logger.warn(`Client ${client.id} connected without token`);
+        client.emit('error', { message: 'Token manquant' });
         client.disconnect();
         return;
       }
 
-      const payload = this.jwtService.verify(token as string);
+      let payload;
+      try {
+        const secret = process.env.JWT_SECRET || 'your-secret-key';
+        payload = this.jwtService.verify(token as string, { secret });
+      } catch (error) {
+        this.logger.error(`JWT verification failed: ${error.message}`, error.stack);
+        client.emit('error', { message: 'Token invalide ou expiré' });
+        client.disconnect();
+        return;
+      }
+
       const userId = payload.sub;
+      if (!userId) {
+        this.logger.error(`No userId in JWT payload: ${JSON.stringify(payload)}`);
+        client.emit('error', { message: 'Token invalide: userId manquant' });
+        client.disconnect();
+        return;
+      }
+
       const user = await this.usersService.findOne(userId);
 
       // Stocker les informations utilisateur dans le socket
@@ -82,7 +100,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }));
       client.emit('onlineUsers', { users: onlineUsers });
     } catch (error) {
-      this.logger.error(`Connection error: ${error.message}`);
+      this.logger.error(`Connection error: ${error.message}`, error.stack);
+      client.emit('error', { 
+        message: error.message || 'Erreur de connexion',
+        timestamp: new Date().toISOString(),
+      });
       client.disconnect();
     }
   }

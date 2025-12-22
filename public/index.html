@@ -3,7 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ChatNest - Messagerie Instantanée</title>
+    <title>ChatNest - Redirection</title>
+    <script>
+        // Rediriger vers la page de connexion
+        window.location.href = 'login.html';
+    </script>
     <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
     <style>
         * {
@@ -304,11 +308,18 @@
             <div class="sidebar">
                 <div class="login-section" id="loginSection">
                     <h3>Connexion</h3>
-                    <input type="email" id="emailInput" placeholder="Email" value="test@example.com">
-                    <input type="password" id="passwordInput" placeholder="Mot de passe" value="password123">
+                    <input type="text" id="usernameInput" placeholder="Username (pour inscription)" style="display: none;">
+                    <input type="email" id="emailInput" placeholder="Email" value="">
+                    <input type="password" id="passwordInput" placeholder="Mot de passe" value="">
                     <button onclick="login()">Se connecter</button>
-                    <button onclick="register()" style="background: #28a745; margin-top: 5px;">S'inscrire</button>
+                    <button onclick="toggleRegister()" style="background: #6c757d; margin-top: 5px;" id="toggleRegisterBtn">S'inscrire</button>
+                    <button onclick="register()" style="background: #28a745; margin-top: 5px; display: none;" id="registerBtn">Créer le compte</button>
                     <div id="authMessage"></div>
+                    <div style="margin-top: 10px; font-size: 12px; color: #666;">
+                        <strong>Test rapide:</strong><br>
+                        <button onclick="quickLogin('user1@test.com', 'password123')" style="font-size: 11px; padding: 5px; margin: 2px;">User 1</button>
+                        <button onclick="quickLogin('user2@test.com', 'password123')" style="font-size: 11px; padding: 5px; margin: 2px;">User 2</button>
+                    </div>
                 </div>
 
                 <div class="rooms-section hidden" id="roomsSection">
@@ -373,11 +384,37 @@
             }
         }
 
+        function toggleRegister() {
+            const usernameInput = document.getElementById('usernameInput');
+            const registerBtn = document.getElementById('registerBtn');
+            const toggleBtn = document.getElementById('toggleRegisterBtn');
+            
+            if (usernameInput.style.display === 'none') {
+                usernameInput.style.display = 'block';
+                registerBtn.style.display = 'block';
+                toggleBtn.style.display = 'none';
+            } else {
+                usernameInput.style.display = 'none';
+                registerBtn.style.display = 'none';
+                toggleBtn.style.display = 'block';
+            }
+        }
+
         async function register() {
             const email = document.getElementById('emailInput').value;
             const password = document.getElementById('passwordInput').value;
-            const username = email.split('@')[0];
+            const username = document.getElementById('usernameInput').value;
             const messageDiv = document.getElementById('authMessage');
+
+            if (!username || username.length < 3) {
+                messageDiv.innerHTML = '<div class="error">Le username doit contenir au moins 3 caractères</div>';
+                return;
+            }
+
+            if (!email || !password) {
+                messageDiv.innerHTML = '<div class="error">Veuillez remplir tous les champs</div>';
+                return;
+            }
 
             try {
                 const response = await fetch(`${API_URL}/auth/register`, {
@@ -401,13 +438,31 @@
             }
         }
 
+        async function quickLogin(email, password) {
+            document.getElementById('emailInput').value = email;
+            document.getElementById('passwordInput').value = password;
+            await login();
+        }
+
         function connectWebSocket() {
+            if (!currentToken) {
+                console.error('No token available for WebSocket connection');
+                document.getElementById('authMessage').innerHTML = '<div class="error">Token manquant. Veuillez vous reconnecter.</div>';
+                return;
+            }
+
+            console.log('Connecting to WebSocket with token:', currentToken.substring(0, 20) + '...');
+            
             socket = io(`${API_URL}/chat`, {
                 auth: { token: currentToken },
-                transports: ['websocket']
+                transports: ['websocket', 'polling'],
+                reconnection: true,
+                reconnectionDelay: 1000,
+                reconnectionAttempts: 5
             });
 
             socket.on('connect', () => {
+                console.log('WebSocket connected:', socket.id);
                 document.getElementById('connectionStatus').textContent = 'Connecté';
                 document.getElementById('statusIndicator').classList.remove('hidden');
                 document.getElementById('loginSection').classList.add('hidden');
@@ -417,16 +472,29 @@
                 loadOnlineUsers();
             });
 
-            socket.on('disconnect', () => {
+            socket.on('connect_error', (error) => {
+                console.error('WebSocket connection error:', error);
+                document.getElementById('connectionStatus').textContent = 'Erreur de connexion';
+                document.getElementById('authMessage').innerHTML = `<div class="error">Erreur de connexion WebSocket: ${error.message}</div>`;
+            });
+
+            socket.on('disconnect', (reason) => {
+                console.log('WebSocket disconnected:', reason);
                 document.getElementById('connectionStatus').textContent = 'Déconnecté';
                 document.getElementById('statusIndicator').classList.add('hidden');
+                if (reason === 'io server disconnect') {
+                    // Le serveur a déconnecté le client, reconnecter manuellement
+                    socket.connect();
+                }
             });
 
             socket.on('newMessage', (data) => {
+                console.log('New message received:', data);
                 addMessage(data);
             });
 
             socket.on('userStatusChanged', (data) => {
+                console.log('User status changed:', data);
                 loadOnlineUsers();
             });
 
@@ -435,19 +503,33 @@
             });
 
             socket.on('userJoinedRoom', (data) => {
+                console.log('User joined room:', data);
                 addSystemMessage(`${data.username} a rejoint le salon`);
             });
 
             socket.on('userLeftRoom', (data) => {
+                console.log('User left room:', data);
                 addSystemMessage(`${data.username} a quitté le salon`);
             });
 
             socket.on('error', (data) => {
                 console.error('WebSocket error:', data);
+                const messageDiv = document.getElementById('authMessage');
+                if (messageDiv) {
+                    messageDiv.innerHTML = `<div class="error">Erreur WebSocket: ${data.message || 'Erreur inconnue'}</div>`;
+                }
             });
 
             socket.on('onlineUsers', (data) => {
                 console.log('Online users:', data);
+            });
+
+            socket.on('roomJoined', (data) => {
+                console.log('Room joined:', data);
+            });
+
+            socket.on('roomLeft', (data) => {
+                console.log('Room left:', data);
             });
         }
 
@@ -485,11 +567,23 @@
             document.querySelectorAll('.room-item').forEach(item => {
                 item.classList.remove('active');
             });
-            event.target.classList.add('active');
+            if (event && event.target) {
+                event.target.classList.add('active');
+            } else {
+                // Si appelé programmatiquement, trouver l'élément correspondant
+                const roomItems = document.querySelectorAll('.room-item');
+                roomItems.forEach(item => {
+                    if (item.textContent === roomName) {
+                        item.classList.add('active');
+                    }
+                });
+            }
 
             if (roomId) {
-                socket.emit('joinRoom', { roomId });
-                loadRoomMessages(roomId);
+                if (socket) {
+                    socket.emit('joinRoom', { roomId });
+                    loadRoomMessages(roomId);
+                }
             } else {
                 document.getElementById('messagesContainer').innerHTML = '';
             }
@@ -595,7 +689,12 @@
 
         async function createRoom() {
             const roomName = prompt('Nom du salon:');
-            if (!roomName) return;
+            if (!roomName || roomName.trim().length < 3) {
+                if (roomName) {
+                    alert('Le nom du salon doit contenir au moins 3 caractères');
+                }
+                return;
+            }
 
             try {
                 const response = await fetch(`${API_URL}/rooms`, {
@@ -604,14 +703,26 @@
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${currentToken}`
                     },
-                    body: JSON.stringify({ name: roomName })
+                    body: JSON.stringify({ name: roomName.trim() })
                 });
 
+                const data = await response.json();
                 if (response.ok) {
-                    loadRooms();
+                    console.log('Room created:', data);
+                    await loadRooms();
+                    // Rejoindre automatiquement le salon créé
+                    if (data.id) {
+                        setTimeout(() => {
+                            joinRoom(data.id, data.name);
+                        }, 100);
+                    }
+                } else {
+                    alert(`Erreur: ${data.message || 'Impossible de créer le salon'}`);
+                    console.error('Error creating room:', data);
                 }
             } catch (error) {
                 console.error('Error creating room:', error);
+                alert(`Erreur: ${error.message}`);
             }
         }
     </script>

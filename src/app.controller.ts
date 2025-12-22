@@ -14,12 +14,37 @@ export class AppController {
 
   @Get('index.html')
   serveIndex(@Res() res: Response) {
-    // En développement, servir depuis le dossier source
-    // En production, servir depuis dist/public
     const isDev = process.env.NODE_ENV !== 'production';
     const publicPath = isDev 
       ? join(process.cwd(), 'public', 'index.html')
       : join(__dirname, '..', 'public', 'index.html');
+    res.sendFile(publicPath);
+  }
+
+  @Get('login.html')
+  serveLogin(@Res() res: Response) {
+    const isDev = process.env.NODE_ENV !== 'production';
+    const publicPath = isDev 
+      ? join(process.cwd(), 'public', 'login.html')
+      : join(__dirname, '..', 'public', 'login.html');
+    res.sendFile(publicPath);
+  }
+
+  @Get('register.html')
+  serveRegister(@Res() res: Response) {
+    const isDev = process.env.NODE_ENV !== 'production';
+    const publicPath = isDev 
+      ? join(process.cwd(), 'public', 'register.html')
+      : join(__dirname, '..', 'public', 'register.html');
+    res.sendFile(publicPath);
+  }
+
+  @Get('chat.html')
+  serveChat(@Res() res: Response) {
+    const isDev = process.env.NODE_ENV !== 'production';
+    const publicPath = isDev 
+      ? join(process.cwd(), 'public', 'chat.html')
+      : join(__dirname, '..', 'public', 'chat.html');
     res.sendFile(publicPath);
   }
 }

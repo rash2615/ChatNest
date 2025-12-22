@@ -24,9 +24,13 @@ export class RoomsController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   create(@Body() createRoomDto: CreateRoomDto, @Request() req) {
+    const userId = req.user.userId;
+    if (!userId) {
+      throw new Error('User ID not found in token');
+    }
     return this.roomsService.create({
       ...createRoomDto,
-      createdBy: req.user.userId || createRoomDto.createdBy,
+      createdBy: userId,
     });
   }
 
