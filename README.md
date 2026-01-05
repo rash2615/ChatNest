@@ -15,7 +15,7 @@ npm install
 npm run start:dev
 ```
 
-L'application sera accessible sur `http://localhost:3000`
+L'application sera accessible sur `http://localhost:3001`
 
 ## Structure du projet
 
